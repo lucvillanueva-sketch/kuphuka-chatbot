@@ -155,7 +155,7 @@ module.exports = async function handler(req, res) {
         Authorization: `Bearer ${groqApiKey}`,
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: 'llama-3.1-8b-instant',
         messages: [
           { role: 'system', content: SYSTEM_PROMPT + '\n\nIMPORTANTE: Responde siempre en máximo 2 frases cortas y directas. Sin listas, sin puntos, sin explicaciones largas. Ve al punto.' },
           ...messages.slice(-10),
@@ -214,7 +214,7 @@ module.exports = async function handler(req, res) {
           },
           body: JSON.stringify({
             text: cleanForTTS(reply).slice(0, 1000),
-            model_id: 'eleven_multilingual_v2',
+            model_id: 'eleven_turbo_v2_5',
             voice_settings: { stability: 0.5, similarity_boost: 0.8, speed: 1.1 },
           }),
         }),

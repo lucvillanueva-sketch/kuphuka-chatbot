@@ -397,18 +397,11 @@
         body: JSON.stringify({ text: GREETING_TTS })
       }).then(function(r) { return r.ok ? r.json() : null; }).catch(function() { return null; });
 
-      setTimeout(function () {
-        setLoading(true);
-        setTimeout(function () {
-          setLoading(false);
-          addMessage(GREETING, 'bot');
-          inputEl.focus();
-          // Play greeting audio when ready
-          greetingAudioPromise.then(function(data) {
-            if (data && data.audio) playAudio(data.audio);
-          });
-        }, 800);
-      }, 100);
+      addMessage(GREETING, 'bot');
+      inputEl.focus();
+      greetingAudioPromise.then(function(data) {
+        if (data && data.audio) playAudio(data.audio);
+      });
     }
   });
 
