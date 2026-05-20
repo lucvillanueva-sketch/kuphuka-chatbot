@@ -160,7 +160,7 @@ module.exports = async function handler(req, res) {
           { role: 'system', content: SYSTEM_PROMPT + '\n\nIMPORTANTE: Responde siempre en máximo 2 frases cortas y directas. Sin listas, sin puntos, sin explicaciones largas. Ve al punto.' },
           ...messages.slice(-10),
         ],
-        max_tokens: 80,
+        max_tokens: 150,
         temperature: 0.7,
       }),
     });
@@ -176,14 +176,19 @@ module.exports = async function handler(req, res) {
 
     function cleanForTTS(text) {
       return text
-        .replace(/https?:\/\/[^\s]+/g, '')           // remove URLs
-        .replace(/€\s*([\d,.]+)/g, '$1 euros')        // €39 → 39 euros
-        .replace(/([\d,.]+)\s*€/g, '$1 euros')        // 39€ → 39 euros
-        .replace(/Kuphuka/gi, 'Kufuka')               // fix brand pronunciation
-        .replace(/\*\*(.*?)\*\*/g, '$1')              // strip bold markdown
-        .replace(/\*(.*?)\*/g, '$1')                  // strip italic markdown
-        .replace(/[#\-•]/g, '')                       // strip markdown symbols
-        .replace(/\s{2,}/g, ' ')                      // collapse extra spaces
+        .replace(/https?:\/\/[^\s]+/g, '')            // remove URLs
+        .replace(/€\s*([\d,.]+)/g, '$1 euros')         // €39 → 39 euros
+        .replace(/([\d,.]+)\s*€/g, '$1 euros')         // 39€ → 39 euros
+        .replace(/(\d+)\s*h\b/g, '$1 horas')           // 24h → 24 horas
+        .replace(/(\d+)-(\d+)\s*h\b/g, '$1 a $2 horas') // 24-48h → 24 a 48 horas
+        .replace(/(\d+)\s*min\b/gi, '$1 minutos')      // 30min → 30 minutos
+        .replace(/(\d+)\s*s\b/g, '$1 segundos')        // 10s → 10 segundos
+        .replace(/1-click/gi, 'un clic')               // 1-click → un clic
+        .replace(/Kuphuka/gi, 'Kufuka')                // fix brand pronunciation
+        .replace(/\*\*(.*?)\*\*/g, '$1')               // strip bold markdown
+        .replace(/\*(.*?)\*/g, '$1')                   // strip italic markdown
+        .replace(/[#•]/g, '')                          // strip markdown symbols
+        .replace(/\s{2,}/g, ' ')                       // collapse extra spaces
         .trim();
     }
 
