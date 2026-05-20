@@ -41,27 +41,40 @@ function detectEscalation(reply, lastUserMessage) {
     USER_ESCALATION_PHRASES.some(p => u.includes(p));
 }
 
-async function logToAirtable(userMessage, botReply, escalated) {
+async function logToAirtable(userMessage, botReply, escalated, sessionId) {
   const apiKey = process.env.AIRTABLE_API_KEY;
   const baseId = process.env.AIRTABLE_BASE_ID;
-  if (!apiKey || !baseId) return;
-
+  if (!apiKey || !baseId) {
+    console.error('Airtable: missing env vars - apiKey:', !!apiKey, 'baseId:', !!baseId);
+    return;
+  }
   const tableId = process.env.AIRTABLE_TABLE_ID || 'tbl5Aoa78BZ2kANnz';
-  fetch(`https://api.airtable.com/v0/${baseId}/${tableId}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      fields: {
-        Date: new Date().toISOString(),
-        'Customer Message': userMessage,
-        'Bot Reply': botReply,
-        Escalated: escalated,
+  try {
+    const res = await fetch(`https://api.airtable.com/v0/${baseId}/${tableId}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
       },
-    }),
-  }).catch(err => console.error('Airtable error:', err));
+      body: JSON.stringify({
+        fields: {
+          Date: new Date().toISOString(),
+          'Customer Message': userMessage,
+          'Bot Reply': botReply,
+          Escalated: escalated,
+          'Session ID': sessionId || '',
+        },
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      console.error('Airtable HTTP error:', res.status, JSON.stringify(data));
+    } else {
+      console.log('Airtable logged OK, id:', data.id);
+    }
+  } catch (err) {
+    console.error('Airtable exception:', err.message);
+  }
 }
 
 async function sendEscalationEmail(messages, botReply) {
@@ -75,7 +88,7 @@ async function sendEscalationEmail(messages, botReply) {
     </tr>`)
     .join('');
 
-  fetch('https://api.resend.com/emails', {
+  return fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -117,7 +130,7 @@ module.exports = async function handler(req, res) {
     return res.status(429).json({ error: 'Too many requests. Please try again later.' });
   }
 
-  const { messages } = req.body || {};
+  const { messages, sessionId } = req.body || {};
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: 'Invalid messages' });
   }
@@ -155,8 +168,9 @@ module.exports = async function handler(req, res) {
     const lastUserMessage = messages[messages.length - 1]?.content || '';
     const escalated = detectEscalation(reply, lastUserMessage);
 
-    logToAirtable(lastUserMessage, reply, escalated);
-    if (escalated) sendEscalationEmail(messages, reply);
+    const tasks = [logToAirtable(lastUserMessage, reply, escalated, sessionId)];
+    if (escalated) tasks.push(sendEscalationEmail(messages, reply));
+    await Promise.allSettled(tasks);
 
     res.status(200).json({ message: reply });
   } catch (err) {
