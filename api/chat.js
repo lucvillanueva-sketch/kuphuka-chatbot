@@ -145,36 +145,34 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'Invalid messages' });
   }
 
-  const ollamaBase = process.env.OLLAMA_BASE_URL || 'https://api.ollama.com';
-  const model = process.env.OLLAMA_MODEL || 'gemma4:31b-cloud';
-  const apiKey = process.env.OLLAMA_API_KEY;
+  const groqApiKey = process.env.GROQ_API_KEY;
 
   try {
-    const response = await fetch(`${ollamaBase}/api/chat`, {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+        Authorization: `Bearer ${groqApiKey}`,
       },
       body: JSON.stringify({
-        model,
+        model: 'llama-3.3-70b-versatile',
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
           ...messages.slice(-10),
         ],
-        stream: false,
-        options: { num_predict: 300 },
+        max_tokens: 300,
+        temperature: 0.7,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Ollama API error:', response.status, errorText);
+      console.error('Groq API error:', response.status, errorText);
       return res.status(502).json({ error: 'Model unavailable' });
     }
 
     const data = await response.json();
-    const reply = data.message?.content || 'Lo siento, no pude generar una respuesta en este momento.';
+    const reply = data.choices?.[0]?.message?.content || 'Lo siento, no pude generar una respuesta en este momento.';
 
     function cleanForTTS(text) {
       return text
