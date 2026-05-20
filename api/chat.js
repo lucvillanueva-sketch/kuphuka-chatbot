@@ -97,7 +97,7 @@ async function sendEscalationEmail(messages, botReply) {
       },
       body: JSON.stringify({
         from: 'Kuphuka Chatbot <onboarding@resend.dev>',
-        to: ['info@kuphuka.com'],
+        to: ['lucvillanueva@gmail.com'],
         subject: '⚠️ Cliente necesita ayuda humana — Kuphuka Chat',
         html: `
           <h2 style="color:#2a7d4f">Un cliente necesita atención humana</h2>
