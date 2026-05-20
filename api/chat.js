@@ -163,6 +163,7 @@ module.exports = async function handler(req, res) {
           ...messages.slice(-10),
         ],
         stream: false,
+        options: { num_predict: 300 },
       }),
     });
 
@@ -174,6 +175,19 @@ module.exports = async function handler(req, res) {
 
     const data = await response.json();
     const reply = data.message?.content || 'Lo siento, no pude generar una respuesta en este momento.';
+
+    function cleanForTTS(text) {
+      return text
+        .replace(/https?:\/\/[^\s]+/g, '')           // remove URLs
+        .replace(/€\s*([\d,.]+)/g, '$1 euros')        // €39 → 39 euros
+        .replace(/([\d,.]+)\s*€/g, '$1 euros')        // 39€ → 39 euros
+        .replace(/Kuphuka/gi, 'Kufuka')               // fix brand pronunciation
+        .replace(/\*\*(.*?)\*\*/g, '$1')              // strip bold markdown
+        .replace(/\*(.*?)\*/g, '$1')                  // strip italic markdown
+        .replace(/[#\-•]/g, '')                       // strip markdown symbols
+        .replace(/\s{2,}/g, ' ')                      // collapse extra spaces
+        .trim();
+    }
 
     const lastUserMessage = messages[messages.length - 1]?.content || '';
     const escalated = detectEscalation(reply, lastUserMessage);
@@ -196,7 +210,7 @@ module.exports = async function handler(req, res) {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            text: reply.slice(0, 1000),
+            text: cleanForTTS(reply).slice(0, 1000),
             model_id: 'eleven_multilingual_v2',
             voice_settings: { stability: 0.5, similarity_boost: 0.8 },
           }),
