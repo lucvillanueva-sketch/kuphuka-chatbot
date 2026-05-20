@@ -103,6 +103,7 @@
     color: white;
     border-bottom-right-radius: 4px;
     align-self: flex-end;
+    margin-right: 4px;
   }
   #kup-typing {
     display: none;
@@ -272,16 +273,27 @@
     if (on) messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 
-  function playAudio(base64Audio) {
+  // AudioContext — unlocked on first user gesture, works on iOS Safari
+  var audioCtx = null;
+
+  function unlockAudio() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  }
+
+  async function playAudio(base64Audio) {
     try {
+      unlockAudio();
       var binary = atob(base64Audio);
       var bytes = new Uint8Array(binary.length);
       for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      var blob = new Blob([bytes], { type: 'audio/mpeg' });
-      var url = URL.createObjectURL(blob);
-      var audio = new Audio(url);
-      audio.play();
-      audio.onended = function() { URL.revokeObjectURL(url); };
+      var audioBuffer = await audioCtx.decodeAudioData(bytes.buffer.slice(0));
+      var source = audioCtx.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(audioCtx.destination);
+      source.start(0);
     } catch (e) {
       console.log('Audio playback error:', e);
     }
@@ -376,9 +388,9 @@
     }
   });
 
-  sendBtn.addEventListener('click', sendMessage);
+  sendBtn.addEventListener('click', function() { unlockAudio(); sendMessage(); });
   inputEl.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); unlockAudio(); sendMessage(); }
   });
 
   if (window.visualViewport) {
