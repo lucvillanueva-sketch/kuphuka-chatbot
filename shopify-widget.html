@@ -103,7 +103,7 @@
     color: white;
     border-bottom-right-radius: 4px;
     align-self: flex-end;
-    margin-left: 40px;
+    margin-left: 40px !important;
   }
   #kup-typing {
     display: none;
@@ -373,16 +373,30 @@
     inputEl.focus();
   }
 
+  var GREETING_TTS = 'Hola, soy el asistente de Kufuka. ¿En qué puedo ayudarte hoy?';
+
   btn.addEventListener('click', function () {
+    unlockAudio();
     widget.classList.toggle('kup-open');
     if (widget.classList.contains('kup-open') && !greeted) {
       greeted = true;
+      // Fetch greeting audio in parallel with the typing delay
+      var greetingAudioPromise = fetch(TTS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: GREETING_TTS })
+      }).then(function(r) { return r.ok ? r.json() : null; }).catch(function() { return null; });
+
       setTimeout(function () {
         setLoading(true);
         setTimeout(function () {
           setLoading(false);
           addMessage(GREETING, 'bot');
           inputEl.focus();
+          // Play greeting audio when ready
+          greetingAudioPromise.then(function(data) {
+            if (data && data.audio) playAudio(data.audio);
+          });
         }, 800);
       }, 100);
     }
