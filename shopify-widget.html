@@ -303,6 +303,12 @@
     }
   }
 
+  // Correct phonetic variants of "Kuphuka" that speech recognition may produce
+  function fixBrandName(text) {
+    // Catches: kufuka, ku fuka, ku fu ka, cuphuca, cufuca, ku-fu-ka, kufoca, etc.
+    return text.replace(/(ku|cu)[\s\-]?(f|ph)(u|o|a)[\s\-]?k(a|o)/gi, 'Kuphuka');
+  }
+
   // Speech recognition setup
   var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   var recognition = null;
@@ -319,7 +325,7 @@
       for (var i = event.resultIndex; i < event.results.length; i++) {
         transcript += event.results[i][0].transcript;
       }
-      inputEl.value = transcript;
+      inputEl.value = fixBrandName(transcript);
     };
 
     recognition.onend = function() {
