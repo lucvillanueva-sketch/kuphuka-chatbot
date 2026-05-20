@@ -178,11 +178,44 @@ module.exports = async function handler(req, res) {
     const lastUserMessage = messages[messages.length - 1]?.content || '';
     const escalated = detectEscalation(reply, lastUserMessage);
 
+    // Run logging and TTS in parallel
+    const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
+    const VOICE_ID = 'PksrhvpHrGUgesnsmLTX';
+
     const tasks = [logToAirtable(lastUserMessage, reply, escalated, sessionId)];
     if (escalated) tasks.push(sendEscalationEmail(messages, reply));
-    await Promise.allSettled(tasks);
 
-    res.status(200).json({ message: reply });
+    let audioBase64 = null;
+    if (elevenLabsKey) {
+      const [logResult, ttsResult] = await Promise.allSettled([
+        Promise.allSettled(tasks),
+        fetch(`https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`, {
+          method: 'POST',
+          headers: {
+            'xi-api-key': elevenLabsKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            text: reply.slice(0, 1000),
+            model_id: 'eleven_multilingual_v2',
+            voice_settings: { stability: 0.5, similarity_boost: 0.8 },
+          }),
+        }),
+      ]);
+
+      if (ttsResult.status === 'fulfilled' && ttsResult.value.ok) {
+        const audioBuffer = await ttsResult.value.arrayBuffer();
+        audioBase64 = Buffer.from(audioBuffer).toString('base64');
+        console.log(`TTS OK — ${reply.length} chars, ${audioBuffer.byteLength} bytes`);
+      } else {
+        console.error('TTS failed:', ttsResult.reason || ttsResult.value?.status);
+        await Promise.allSettled(tasks);
+      }
+    } else {
+      await Promise.allSettled(tasks);
+    }
+
+    res.status(200).json({ message: reply, audio: audioBase64 });
   } catch (err) {
     console.error('Handler error:', err);
     res.status(500).json({ error: 'Internal server error' });

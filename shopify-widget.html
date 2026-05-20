@@ -272,17 +272,9 @@
     if (on) messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 
-  async function playTTS(text) {
+  function playAudio(base64Audio) {
     try {
-      var res = await fetch(TTS_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: text })
-      });
-      if (!res.ok) return;
-      var data = await res.json();
-      if (!data.audio) return;
-      var binary = atob(data.audio);
+      var binary = atob(base64Audio);
       var bytes = new Uint8Array(binary.length);
       for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
       var blob = new Blob([bytes], { type: 'audio/mpeg' });
@@ -291,7 +283,7 @@
       audio.play();
       audio.onended = function() { URL.revokeObjectURL(url); };
     } catch (e) {
-      console.log('TTS playback error:', e);
+      console.log('Audio playback error:', e);
     }
   }
 
@@ -361,7 +353,7 @@
       var reply = data.message || 'Lo siento, ha habido un error. Por favor escríbenos a info@kuphuka.com.';
       history.push({ role: 'assistant', content: reply });
       addMessage(reply, 'bot');
-      playTTS(reply);
+      if (data.audio) playAudio(data.audio);
     } catch (e) {
       addMessage('Lo siento, no he podido conectar. Por favor inténtalo de nuevo o escríbenos a info@kuphuka.com.', 'bot');
     }
