@@ -288,7 +288,8 @@
 
   async function playAudio(base64Audio) {
     try {
-      unlockAudio();
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
       var binary = atob(base64Audio);
       var bytes = new Uint8Array(binary.length);
       for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);

@@ -22,7 +22,7 @@ const SYSTEM_PROMPT = `Eres el asistente virtual de Kuphuka. Tu misión es ayuda
 
 ## PRECIOS Y OPCIONES DE COMPRA
 IMPORTANTE: Solo existen DOS opciones de compra. Nunca menciones una tercera opción ni planes trimestrales ni anuales. No existen.
-- Opción 1 — Compra única: 59,99€ — 30 dosis, envío gratis, entrega en 24h
+- Opción 1 — Compra única: 59€ — 30 dosis, envío gratis, entrega en 24h
 - Opción 2 — Suscripción mensual: 39€ el primer mes, luego 49€/mes — entrega cada 30-45 días, cancelable en cualquier momento
 - Pago contra reembolso: disponible solo para compra única con dirección en España (no en suscripciones)
 - Link de compra: https://kuphuka.com/products/kuphuka-greens
@@ -72,7 +72,7 @@ P: ¿Qué es Kuphuka?
 R: Un suplemento diario premium hecho en España, 100% natural, con más de 70 extractos, vitaminas, minerales, probióticos y antioxidantes, diseñado para cubrir todas las bases nutricionales con una sola dosis al día.
 
 P: ¿Cuánto cuesta? / ¿Qué precio tiene?
-R: Hay dos opciones: Compra única 59,99€ (30 dosis, envío gratis, entrega 24h). Suscripción mensual: 39€ el primer mes, luego 49€/mes (entrega cada 30-45 días, cancelable en cualquier momento).
+R: Hay dos opciones: Compra única 59€ (30 dosis, envío gratis, entrega 24h). Suscripción mensual: 39€ el primer mes, luego 49€/mes (entrega cada 30-45 días, cancelable en cualquier momento).
 
 P: ¿A qué sabe?
 R: Hay dos sabores: Manzana + Vainilla, o Piña + Coco. Fácil de mezclar con agua o batidos.
@@ -108,7 +108,7 @@ P: ¿Puedo cancelar o pausar mi suscripción?
 R: Sí, en cualquier momento desde tu portal de cliente en https://kuphuka.com/account/login. Si tienes problemas, escríbenos a info@kuphuka.com y te enviamos un enlace de acceso directo.
 
 P: ¿Tienen plan anual o trimestral?
-R: De momento solo tenemos dos opciones: compra única a 59,99€ o suscripción mensual (39€ el primer mes, luego 49€/mes).
+R: De momento solo tenemos dos opciones: compra única a 59€ o suscripción mensual (39€ el primer mes, luego 49€/mes).
 
 P: ¿Tienen programa de afiliados?
 R: Sí, puedes ver los detalles en https://kuphuka.goaffpro.com/
