@@ -88,28 +88,38 @@ async function sendEscalationEmail(messages, botReply) {
     </tr>`)
     .join('');
 
-  return fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: 'Kuphuka Chatbot <onboarding@resend.dev>',
-      to: ['info@kuphuka.com'],
-      subject: '⚠️ Cliente necesita ayuda humana — Kuphuka Chat',
-      html: `
-        <h2 style="color:#2a7d4f">Un cliente necesita atención humana</h2>
-        <p><strong>Fecha:</strong> ${new Date().toLocaleString('es-ES', { timeZone: 'Europe/Madrid' })}</p>
-        <h3>Conversación completa:</h3>
-        <table style="border-collapse:collapse;width:100%;font-family:sans-serif;font-size:14px">
-          ${transcript}
-        </table>
-        <br>
-        <p style="color:#888;font-size:12px">Responde al cliente en info@kuphuka.com</p>
-      `,
-    }),
-  }).catch(err => console.error('Resend error:', err));
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'Kuphuka Chatbot <onboarding@resend.dev>',
+        to: ['info@kuphuka.com'],
+        subject: '⚠️ Cliente necesita ayuda humana — Kuphuka Chat',
+        html: `
+          <h2 style="color:#2a7d4f">Un cliente necesita atención humana</h2>
+          <p><strong>Fecha:</strong> ${new Date().toLocaleString('es-ES', { timeZone: 'Europe/Madrid' })}</p>
+          <h3>Conversación completa:</h3>
+          <table style="border-collapse:collapse;width:100%;font-family:sans-serif;font-size:14px">
+            ${transcript}
+          </table>
+          <br>
+          <p style="color:#888;font-size:12px">Responde al cliente en info@kuphuka.com</p>
+        `,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      console.error('Resend HTTP error:', res.status, JSON.stringify(data));
+    } else {
+      console.log('Resend email sent OK, id:', data.id);
+    }
+  } catch (err) {
+    console.error('Resend exception:', err.message);
+  }
 }
 
 module.exports = async function handler(req, res) {
