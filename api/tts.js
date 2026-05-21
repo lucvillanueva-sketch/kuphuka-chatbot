@@ -42,7 +42,7 @@ module.exports = async function handler(req, res) {
           voice_settings: {
             stability: 0.5,
             similarity_boost: 0.8,
-            speed: 1.1,
+            speed: 1.2,
           },
         }),
       }
