@@ -305,8 +305,13 @@
 
   // Correct phonetic variants of "Kuphuka" that speech recognition may produce
   function fixBrandName(text) {
-    // Catches: kufuka, ku fuka, ku fu ka, cuphuca, cufuca, ku-fu-ka, kufoca, etc.
-    return text.replace(/(ku|cu)[\s\-]?(f|ph)(u|o|a)[\s\-]?k(a|o)/gi, 'Kuphuka');
+    return text
+      // Full phonetic variants: kufuka, ku fuka, ku fu ka, cuphuca, cofuca, etc.
+      .replace(/(ku|cu|ko|co)[\s\-]?(f|ph)(u|o|a)[\s\-]?(k|c)(a|o)/gi, 'Kuphuka')
+      // iOS garbled short forms: KFK, CFCA, CFK, KFKA, KFC+vowel, etc.
+      .replace(/\b[ck][\s\-]?f[\s\-]?[ck][ao]?\b/gi, 'Kuphuka')
+      // Spelled out with spaces: K U F U K A
+      .replace(/\bk[\s]u[\s]f[\s]u[\s]k[\s]?a?\b/gi, 'Kuphuka');
   }
 
   // Speech recognition setup
