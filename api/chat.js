@@ -154,7 +154,8 @@ module.exports = async function handler(req, res) {
     const { email, orderNumber } = extractCredentials(messages);
     if (email && orderNumber && process.env.SHOPIFY_ACCESS_TOKEN) {
       const orders = await lookupOrders(email.toLowerCase(), orderNumber);
-      customerContext = '\n\n' + buildCustomerContext(orders);
+      customerContext = '\n\n' + buildCustomerContext(orders) +
+        '\n\nNOTA DEL SISTEMA: Los datos del cliente ya están verificados y cargados. NO vuelvas a pedir email ni número de pedido en esta conversación. Responde directamente usando los datos de arriba.';
       console.log(`Customer lookup: ${email} #${orderNumber} → ${orders.length} orders`);
     }
   } catch (err) {
