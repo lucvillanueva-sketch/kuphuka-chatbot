@@ -12,23 +12,27 @@ module.exports = async function handler(req, res) {
 
   if (!key) return res.status(500).json({ error: 'APPSTLE_API_KEY not set' });
 
-  // Try multiple endpoint variants to find what works
-  const variants = [
-    `https://subscription-admin.appstle.com/api/external/v2/subscriptionContracts?customerEmail=${encodeURIComponent(email)}&shopName=${shop}`,
-    `https://subscription-admin.appstle.com/api/external/v2/subscriptionContracts?email=${encodeURIComponent(email)}&shopName=${shop}`,
-    `https://subscription-admin.appstle.com/api/external/v2/subscriptionContracts?customerEmail=${encodeURIComponent(email)}`,
-    `https://subscription-admin.appstle.com/api/external/v2/subscription-contracts?customerEmail=${encodeURIComponent(email)}&shopName=${shop}`,
+  const BASE = 'https://subscription-admin.appstle.com/api/external/v2';
+  const url = `${BASE}/subscriptionContracts?customerEmail=${encodeURIComponent(email)}&shopName=${shop}`;
+
+  // Try different auth header formats
+  const authVariants = [
+    { 'X-API-Key': key },
+    { 'x-api-key': key },
+    { 'Authorization': `Bearer ${key}` },
+    { 'Authorization': `Basic ${Buffer.from(key + ':').toString('base64')}` },
+    { 'Authorization': key },
   ];
 
   const results = [];
-  for (const url of variants) {
+  for (const authHeaders of authVariants) {
     try {
-      const r = await fetch(url, { headers: { 'X-API-Key': key, 'Content-Type': 'application/json' } });
+      const r = await fetch(url, { headers: { ...authHeaders, 'Content-Type': 'application/json' } });
       const text = await r.text();
-      results.push({ url, status: r.status, body: text.slice(0, 300) });
-      if (r.ok) break; // stop at first success
+      results.push({ auth: Object.keys(authHeaders)[0], status: r.status, body: text.slice(0, 400) });
+      if (r.ok) break;
     } catch (err) {
-      results.push({ url, error: err.message });
+      results.push({ auth: Object.keys(authHeaders)[0], error: err.message });
     }
   }
 
