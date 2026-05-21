@@ -311,7 +311,9 @@
       // iOS garbled short forms: KFK, CFCA, CFK, KFKA, KFC+vowel, etc.
       .replace(/\b[ck][\s\-]?f[\s\-]?[ck][ao]?\b/gi, 'Kuphuka')
       // Spelled out with spaces: K U F U K A
-      .replace(/\bk[\s]u[\s]f[\s]u[\s]k[\s]?a?\b/gi, 'Kuphuka');
+      .replace(/\bk[\s]u[\s]f[\s]u[\s]k[\s]?a?\b/gi, 'Kuphuka')
+      // iOS "Kung Fu" variants: Kung Fu Ka, Kung Fu Ca, Kung Fu Uca, Kung Fuka, etc.
+      .replace(/kung[\s\-]?fu[\s\-]?(u?[ck]a?|uca|ka|ca)\b/gi, 'Kuphuka');
   }
 
   // Speech recognition setup
