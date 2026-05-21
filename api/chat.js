@@ -167,7 +167,7 @@ module.exports = async function handler(req, res) {
 
       if (orderCtx || subCtx) {
         customerContext = '\n\n' + [orderCtx, subCtx].filter(Boolean).join('\n\n') +
-          '\n\nNOTA DEL SISTEMA: Los datos del cliente ya están verificados y cargados. NO vuelvas a pedir email ni número de pedido en esta conversación. Responde directamente usando los datos de arriba.';
+          '\n\nNOTA DEL SISTEMA: Los datos del cliente ya están verificados y cargados. NO vuelvas a pedir email ni número de pedido en esta conversación. Si aparece "Nombre del cliente", salúdale por su nombre de pila en este primer mensaje con sus datos y úsalo a lo largo de la conversación. Responde directamente usando los datos de arriba.';
         console.log(`Customer context: ${email} → orders:${orders.length} subs:${subscriptions.length}`);
       }
     }
