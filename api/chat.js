@@ -1,5 +1,6 @@
 const { SYSTEM_PROMPT } = require('../knowledge');
 const { lookupOrders, buildCustomerContext, extractCredentials } = require('../lib/shopify');
+const { lookupSubscriptions, buildSubscriptionContext } = require('../lib/appstle');
 
 const ALLOWED_ORIGINS = [
   'https://kuphuka.com',
@@ -148,15 +149,27 @@ module.exports = async function handler(req, res) {
 
   const groqApiKey = process.env.GROQ_API_KEY;
 
-  // Auto-inject customer order data if email + order number found in conversation
+  // Auto-inject customer order + subscription data if email found in conversation
   let customerContext = '';
   try {
     const { email, orderNumber } = extractCredentials(messages);
-    if (email && orderNumber && process.env.SHOPIFY_ACCESS_TOKEN) {
-      const orders = await lookupOrders(email.toLowerCase(), orderNumber);
-      customerContext = '\n\n' + buildCustomerContext(orders) +
-        '\n\nNOTA DEL SISTEMA: Los datos del cliente ya están verificados y cargados. NO vuelvas a pedir email ni número de pedido en esta conversación. Responde directamente usando los datos de arriba.';
-      console.log(`Customer lookup: ${email} #${orderNumber} → ${orders.length} orders`);
+    if (email && process.env.SHOPIFY_ACCESS_TOKEN) {
+      // Run Shopify order lookup and Appstle subscription lookup in parallel
+      const [orders, subscriptions] = await Promise.all([
+        orderNumber ? lookupOrders(email.toLowerCase(), orderNumber) : Promise.resolve([]),
+        process.env.APPSTLE_API_KEY
+          ? lookupSubscriptions(email.toLowerCase()).catch(err => { console.error('Appstle lookup error (non-fatal):', err.message); return []; })
+          : Promise.resolve([]),
+      ]);
+
+      const orderCtx = orders.length ? buildCustomerContext(orders) : null;
+      const subCtx = buildSubscriptionContext(subscriptions);
+
+      if (orderCtx || subCtx) {
+        customerContext = '\n\n' + [orderCtx, subCtx].filter(Boolean).join('\n\n') +
+          '\n\nNOTA DEL SISTEMA: Los datos del cliente ya están verificados y cargados. NO vuelvas a pedir email ni número de pedido en esta conversación. Responde directamente usando los datos de arriba.';
+        console.log(`Customer context: ${email} → orders:${orders.length} subs:${subscriptions.length}`);
+      }
     }
   } catch (err) {
     console.error('Customer context error (non-fatal):', err.message);
