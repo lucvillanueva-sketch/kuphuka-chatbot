@@ -176,19 +176,35 @@ module.exports = async function handler(req, res) {
 
     function cleanForTTS(text) {
       return text
-        .replace(/https?:\/\/[^\s]+/g, '')            // remove URLs
-        .replace(/€\s*([\d,.]+)/g, '$1 euros')         // €39 → 39 euros
-        .replace(/([\d,.]+)\s*€/g, '$1 euros')         // 39€ → 39 euros
-        .replace(/(\d+)\s*h\b/g, '$1 horas')           // 24h → 24 horas
-        .replace(/(\d+)-(\d+)\s*h\b/g, '$1 a $2 horas') // 24-48h → 24 a 48 horas
-        .replace(/(\d+)\s*min\b/gi, '$1 minutos')      // 30min → 30 minutos
-        .replace(/(\d+)\s*s\b/g, '$1 segundos')        // 10s → 10 segundos
-        .replace(/1-click/gi, 'un clic')               // 1-click → un clic
-        .replace(/Kuphuka/gi, 'Kufuka')                // fix brand pronunciation
-        .replace(/\*\*(.*?)\*\*/g, '$1')               // strip bold markdown
-        .replace(/\*(.*?)\*/g, '$1')                   // strip italic markdown
-        .replace(/[#•]/g, '')                          // strip markdown symbols
-        .replace(/\s{2,}/g, ' ')                       // collapse extra spaces
+        .replace(/https?:\/\/[^\s]+/g, '')                        // remove URLs
+        .replace(/€\s*([\d,.]+)/g, '$1 euros')                    // €39 → 39 euros
+        .replace(/([\d,.]+)\s*€/g, '$1 euros')                    // 39€ → 39 euros
+        .replace(/(\d+)\s*h\b/g, '$1 horas')                      // 24h → 24 horas
+        .replace(/(\d+)-(\d+)\s*h\b/g, '$1 a $2 horas')           // 24-48h → 24 a 48 horas
+        .replace(/(\d+)\s*min\b/gi, '$1 minutos')                  // 30min → 30 minutos
+        .replace(/(\d+)\s*s\b/g, '$1 segundos')                   // 10s → 10 segundos
+        .replace(/1-click/gi, 'un clic')                          // 1-click → un clic
+        // Acronyms & units
+        .replace(/\bEE\.?UU\.?/gi, 'Estados Unidos')              // EEUU / EE.UU.
+        .replace(/\bmcg\b/gi, 'microgramos')                      // mcg → microgramos
+        .replace(/\bμg\b/g, 'microgramos')                        // μg → microgramos
+        .replace(/\bkcal\b/gi, 'kilocalorías')                    // kcal → kilocalorías
+        .replace(/(\d+)\s*mg\b/gi, '$1 miligramos')               // 50mg → 50 miligramos
+        .replace(/(\d+)\s*ml\b/gi, '$1 mililitros')               // 200ml → 200 mililitros
+        .replace(/(\d+)\s*kg\b/gi, '$1 kilogramos')               // 2kg → 2 kilogramos
+        .replace(/(\d+)\s*gr?\b/gi, '$1 gramos')                  // 13g / 13gr → 13 gramos
+        .replace(/\bUI\b/g, 'unidades internacionales')           // UI → unidades internacionales
+        .replace(/\bCoQ\s*10\b/gi, 'Coenzima Q diez')             // CoQ10 → Coenzima Q diez
+        .replace(/\betc\./gi, 'etcétera')                         // etc. → etcétera
+        .replace(/\bvs\.?\b/gi, 'versus')                         // vs / vs. → versus
+        .replace(/\baprox\.?\b/gi, 'aproximadamente')             // aprox → aproximadamente
+        .replace(/\bnº\b/gi, 'número')                            // nº → número
+        // Brand & markdown
+        .replace(/Kuphuka/gi, 'Kufuka')                           // fix brand pronunciation
+        .replace(/\*\*(.*?)\*\*/g, '$1')                          // strip bold markdown
+        .replace(/\*(.*?)\*/g, '$1')                              // strip italic markdown
+        .replace(/[#•]/g, '')                                     // strip markdown symbols
+        .replace(/\s{2,}/g, ' ')                                  // collapse extra spaces
         .trim();
     }
 
