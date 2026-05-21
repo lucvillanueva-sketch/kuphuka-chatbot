@@ -152,7 +152,7 @@ module.exports = async function handler(req, res) {
   let customerContext = '';
   try {
     const { email, orderNumber } = extractCredentials(messages);
-    if (email && orderNumber && process.env.SHOPIFY_CLIENT_ID) {
+    if (email && orderNumber && process.env.SHOPIFY_ACCESS_TOKEN) {
       const orders = await lookupOrders(email.toLowerCase(), orderNumber);
       customerContext = '\n\n' + buildCustomerContext(orders);
       console.log(`Customer lookup: ${email} #${orderNumber} → ${orders.length} orders`);
@@ -217,7 +217,8 @@ module.exports = async function handler(req, res) {
         .replace(/Kuphuka/gi, 'Kufuka')                           // fix brand pronunciation
         .replace(/\*\*(.*?)\*\*/g, '$1')                          // strip bold markdown
         .replace(/\*(.*?)\*/g, '$1')                              // strip italic markdown
-        .replace(/[#•]/g, '')                                     // strip markdown symbols
+        .replace(/#(\d+)/g, 'número $1')                          // #1042 → número 1042
+        .replace(/[#•]/g, '')                                     // strip remaining markdown symbols
         .replace(/\s{2,}/g, ' ')                                  // collapse extra spaces
         .trim();
     }
