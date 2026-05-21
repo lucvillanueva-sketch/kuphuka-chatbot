@@ -172,7 +172,7 @@ module.exports = async function handler(req, res) {
       body: JSON.stringify({
         model: 'llama-3.3-70b-versatile',
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT + customerContext + '\n\nIMPORTANTE: Responde siempre en máximo 2 frases cortas y directas. Sin listas, sin puntos, sin explicaciones largas. Ve al punto.' },
+          { role: 'system', content: SYSTEM_PROMPT + customerContext + '\n\nIMPORTANTE: Responde siempre en máximo 2 frases cortas y directas. Sin listas, sin puntos, sin explicaciones largas. Ve al punto.' + (customerContext ? '\n\nREGLA ABSOLUTA: Para cualquier dato del pedido (precio, transportista, tipo de pedido, estado) usa EXCLUSIVAMENTE los valores exactos del bloque DATOS DEL CLIENTE de arriba. Si el dato no está ahí, di que no tienes esa información. Está prohibido inventar o suponer valores.' : '') },
           ...messages.slice(-10),
         ],
         max_tokens: 200,
