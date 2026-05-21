@@ -5,6 +5,9 @@
     },
     "api/tts.js": {
       "maxDuration": 30
+    },
+    "api/customer.js": {
+      "maxDuration": 15
     }
   }
 }

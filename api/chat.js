@@ -1,4 +1,5 @@
 const { SYSTEM_PROMPT } = require('../knowledge');
+const { lookupOrders, buildCustomerContext, extractCredentials } = require('../lib/shopify');
 
 const ALLOWED_ORIGINS = [
   'https://kuphuka.com',
@@ -147,6 +148,19 @@ module.exports = async function handler(req, res) {
 
   const groqApiKey = process.env.GROQ_API_KEY;
 
+  // Auto-inject customer order data if email + order number found in conversation
+  let customerContext = '';
+  try {
+    const { email, orderNumber } = extractCredentials(messages);
+    if (email && orderNumber && process.env.SHOPIFY_CLIENT_ID) {
+      const orders = await lookupOrders(email.toLowerCase(), orderNumber);
+      customerContext = '\n\n' + buildCustomerContext(orders);
+      console.log(`Customer lookup: ${email} #${orderNumber} → ${orders.length} orders`);
+    }
+  } catch (err) {
+    console.error('Customer context error (non-fatal):', err.message);
+  }
+
   try {
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -157,7 +171,7 @@ module.exports = async function handler(req, res) {
       body: JSON.stringify({
         model: 'llama-3.1-8b-instant',
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT + '\n\nIMPORTANTE: Responde siempre en máximo 2 frases cortas y directas. Sin listas, sin puntos, sin explicaciones largas. Ve al punto.' },
+          { role: 'system', content: SYSTEM_PROMPT + customerContext + '\n\nIMPORTANTE: Responde siempre en máximo 2 frases cortas y directas. Sin listas, sin puntos, sin explicaciones largas. Ve al punto.' },
           ...messages.slice(-10),
         ],
         max_tokens: 150,
