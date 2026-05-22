@@ -11,6 +11,7 @@ module.exports = async function handler(req, res) {
   const shop = process.env.SHOPIFY_STORE_DOMAIN || 'kuphuka.myshopify.com';
 
   if (!key) return res.status(500).json({ error: 'APPSTLE_API_KEY not set' });
+  const keyDebug = `${key.slice(0, 8)}... (${key.length} chars total)`;
 
   const BASE = 'https://subscription-admin.appstle.com/api/external/v2';
   const url = `${BASE}/subscriptionContracts?customerEmail=${encodeURIComponent(email)}&shopName=${shop}`;
@@ -36,5 +37,5 @@ module.exports = async function handler(req, res) {
     }
   }
 
-  res.status(200).json({ results });
+  res.status(200).json({ keyDebug, results });
 };
