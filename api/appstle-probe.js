@@ -12,6 +12,7 @@ module.exports = async function handler(req, res) {
   const token = process.env.SHOPIFY_ACCESS_TOKEN;
   if (!token) return res.status(500).json({ error: 'SHOPIFY_ACCESS_TOKEN not set' });
   const tokenDebug = `${token.slice(0, 8)}... (${token.length} chars)`;
+  const domainDebug = DOMAIN;
 
   const query = `
     query GetCustomerSubscriptions($query: String!) {
@@ -81,5 +82,5 @@ module.exports = async function handler(req, res) {
     results.graphql_bearer = { status: r3.status, data: d3 };
   } catch (err) { results.graphql_bearer = { error: err.message }; }
 
-  res.status(200).json({ tokenDebug, results });
+  res.status(200).json({ tokenDebug, domainDebug, results });
 };
