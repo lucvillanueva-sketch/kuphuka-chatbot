@@ -11,6 +11,9 @@ const RATE_LIMIT = 20;
 const RATE_WINDOW_MS = 60 * 60 * 1000;
 const ipMap = new Map();
 
+// Track sessions seen by this instance — fires a new-session email on first contact
+const seenSessions = new Set();
+
 function isRateLimited(ip) {
   const now = Date.now();
   const entry = ipMap.get(ip);
@@ -124,6 +127,57 @@ async function sendEscalationEmail(messages, botReply) {
   }
 }
 
+async function sendNewSessionEmail(sessionId, firstMessage) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return;
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: 'Kuphuka Chatbot <onboarding@resend.dev>',
+        to: ['lucvillanueva@gmail.com'],
+        subject: '💬 Nueva conversación — Kuphuka Chat',
+        html: `
+          <h2 style="color:#2a7d4f">Nueva conversación iniciada</h2>
+          <p><strong>Fecha:</strong> ${new Date().toLocaleString('es-ES', { timeZone: 'Europe/Madrid' })}</p>
+          <p><strong>Primer mensaje:</strong> ${firstMessage.replace(/</g, '&lt;')}</p>
+          <p style="color:#aaa;font-size:11px">Session: ${sessionId}</p>
+        `,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) console.error('New session email error:', res.status, JSON.stringify(data));
+    else console.log('New session email sent, id:', data.id);
+  } catch (err) {
+    console.error('New session email exception:', err.message);
+  }
+}
+
+async function sendShopifyAlertEmail(errorMessage) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return;
+  try {
+    await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: 'Kuphuka Chatbot <onboarding@resend.dev>',
+        to: ['lucvillanueva@gmail.com'],
+        subject: '🚨 Shopify Auth Error — Kuphuka Chatbot',
+        html: `
+          <h2 style="color:#e53e3e">Error de autenticación con Shopify</h2>
+          <p><strong>Fecha:</strong> ${new Date().toLocaleString('es-ES', { timeZone: 'Europe/Madrid' })}</p>
+          <p><strong>Error:</strong> ${String(errorMessage).replace(/</g, '&lt;')}</p>
+          <p>El chatbot no puede acceder a datos de pedidos hasta que se resuelva. Revisa las credenciales en Vercel (SHOPIFY_CLIENT_ID, SHOPIFY_CLIENT_SECRET).</p>
+        `,
+      }),
+    });
+  } catch (err) {
+    console.error('Shopify alert email exception:', err.message);
+  }
+}
+
 module.exports = async function handler(req, res) {
   const origin = req.headers.origin || '';
 
@@ -145,6 +199,15 @@ module.exports = async function handler(req, res) {
   const { messages, sessionId } = req.body || {};
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: 'Invalid messages' });
+  }
+
+  // Fire new-session email on first message of each unique session (non-blocking)
+  if (sessionId && !seenSessions.has(sessionId) && messages.length === 1) {
+    seenSessions.add(sessionId);
+    const firstMsg = messages[0]?.content || '';
+    sendNewSessionEmail(sessionId, firstMsg).catch(() => {});
+  } else if (sessionId) {
+    seenSessions.add(sessionId);
   }
 
   const groqApiKey = process.env.GROQ_API_KEY;
@@ -169,6 +232,10 @@ module.exports = async function handler(req, res) {
     }
   } catch (err) {
     console.error('Customer context error (non-fatal):', err.message);
+    // Alert if this looks like an auth failure (token expired or invalid)
+    if (/401|403|auth|token|credential/i.test(err.message)) {
+      sendShopifyAlertEmail(err.message).catch(() => {});
+    }
   }
 
   const systemContent = SYSTEM_PROMPT + customerContext +
