@@ -11,6 +11,7 @@ module.exports = async function handler(req, res) {
 
   const token = process.env.SHOPIFY_ACCESS_TOKEN;
   if (!token) return res.status(500).json({ error: 'SHOPIFY_ACCESS_TOKEN not set' });
+  const tokenDebug = `${token.slice(0, 8)}... (${token.length} chars)`;
 
   const query = `
     query GetCustomerSubscriptions($query: String!) {
@@ -59,7 +60,7 @@ module.exports = async function handler(req, res) {
     });
 
     const data = await r.json();
-    res.status(200).json({ status: r.status, data });
+    res.status(200).json({ tokenDebug, status: r.status, data });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
