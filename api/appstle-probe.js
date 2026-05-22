@@ -1,5 +1,7 @@
-// Temporary diagnostic endpoint — remove after Appstle integration is confirmed working
+// Temporary diagnostic endpoint — tests Shopify GraphQL subscription contracts
 // Usage: POST /api/appstle-probe with { "email": "customer@email.com" }
+
+const DOMAIN = process.env.SHOPIFY_STORE_DOMAIN || 'kuphuka.myshopify.com';
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
@@ -7,35 +9,58 @@ module.exports = async function handler(req, res) {
   const { email } = req.body || {};
   if (!email) return res.status(400).json({ error: 'email required' });
 
-  const key = process.env.APPSTLE_API_KEY;
-  const shop = process.env.SHOPIFY_STORE_DOMAIN || 'kuphuka.myshopify.com';
+  const token = process.env.SHOPIFY_ACCESS_TOKEN;
+  if (!token) return res.status(500).json({ error: 'SHOPIFY_ACCESS_TOKEN not set' });
 
-  if (!key) return res.status(500).json({ error: 'APPSTLE_API_KEY not set' });
-  const keyDebug = `${key.slice(0, 8)}... (${key.length} chars total)`;
-
-  const BASE = 'https://subscription-admin.appstle.com/api/external/v2';
-  const url = `${BASE}/subscriptionContracts?customerEmail=${encodeURIComponent(email)}&shopName=${shop}`;
-
-  // Try different auth header formats
-  const authVariants = [
-    { 'X-API-Key': key },
-    { 'x-api-key': key },
-    { 'Authorization': `Bearer ${key}` },
-    { 'Authorization': `Basic ${Buffer.from(key + ':').toString('base64')}` },
-    { 'Authorization': key },
-  ];
-
-  const results = [];
-  for (const authHeaders of authVariants) {
-    try {
-      const r = await fetch(url, { headers: { ...authHeaders, 'Content-Type': 'application/json' } });
-      const text = await r.text();
-      results.push({ auth: Object.keys(authHeaders)[0], status: r.status, body: text.slice(0, 400) });
-      if (r.ok) break;
-    } catch (err) {
-      results.push({ auth: Object.keys(authHeaders)[0], error: err.message });
+  const query = `
+    query GetCustomerSubscriptions($query: String!) {
+      customers(first: 1, query: $query) {
+        edges {
+          node {
+            id
+            firstName
+            lastName
+            email
+            subscriptionContracts(first: 5) {
+              edges {
+                node {
+                  id
+                  status
+                  nextBillingDate
+                  billingPolicy {
+                    interval
+                    intervalCount
+                  }
+                  lines(first: 5) {
+                    edges {
+                      node {
+                        title
+                        quantity
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
-  }
+  `;
 
-  res.status(200).json({ keyDebug, results });
+  try {
+    const r = await fetch(`https://${DOMAIN}/admin/api/2024-01/graphql.json`, {
+      method: 'POST',
+      headers: {
+        'X-Shopify-Access-Token': token,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query, variables: { query: `email:${email}` } }),
+    });
+
+    const data = await r.json();
+    res.status(200).json({ status: r.status, data });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 };
