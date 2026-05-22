@@ -152,6 +152,18 @@
     0%,100%{box-shadow:0 0 0 0 rgba(229,62,62,0.3)}
     50%{box-shadow:0 0 0 5px rgba(229,62,62,0)}
   }
+  #kup-call {
+    width: 38px; height: 38px; border-radius: 50%;
+    background: transparent; border: 1.5px solid #2a7d4f;
+    cursor: pointer; display: flex; align-items: center;
+    justify-content: center; flex-shrink: 0;
+    transition: background 0.2s, border-color 0.2s, transform 0.1s;
+  }
+  #kup-call:hover { background: rgba(42,125,79,0.08); transform: scale(1.05); }
+  #kup-call svg { width: 15px; height: 15px; fill: #2a7d4f; transition: fill 0.2s; }
+  #kup-call.kup-call-active { background: #e53e3e; border-color: #e53e3e; animation: kup-pulse 1.5s infinite; }
+  #kup-call.kup-call-active svg { fill: white; }
+  #kup-call:disabled { opacity: 0.4; cursor: default; transform: none; }
   @media (max-width: 420px) {
     #kup-widget { bottom: 26px; right: 16px; left: 16px; }
     #kup-panel { width: 100%; height: 480px; }
@@ -177,6 +189,9 @@
     </div>
     <div id="kup-input-area">
       <input id="kup-input" type="text" placeholder="Escribe o habla..." autocomplete="off" />
+      <button id="kup-call" aria-label="Iniciar llamada">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>
+      </button>
       <button id="kup-mic" aria-label="Hablar">
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm-1.5 4a1.5 1.5 0 0 0-1.5 1.5v5a1.5 1.5 0 0 0 3 0V6.5A1.5 1.5 0 0 0 10.5 5zM3 11a1 1 0 0 1 2 0 7 7 0 0 0 14 0 1 1 0 1 1 2 0 9 9 0 0 1-8 8.94V22h3a1 1 0 1 1 0 2H8a1 1 0 1 1 0-2h3v-2.06A9 9 0 0 1 3 11z"/></svg>
       </button>
@@ -204,10 +219,16 @@
   var inputEl = document.getElementById('kup-input');
   var sendBtn = document.getElementById('kup-send');
   var micBtn = document.getElementById('kup-mic');
+  var callBtn = document.getElementById('kup-call');
 
   var history = [];
   var greeted = false;
   var sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+  var callMode = false;
+  var isSpeaking = false;
+  var ambientSource = null;
+  var ambientGain = null;
+  var typingTimeout = null;
 
   setTimeout(function () {
     widget.classList.add('kup-visible');
@@ -247,20 +268,96 @@
     if (audioCtx.state === 'suspended') audioCtx.resume();
   }
 
+  // Returns a Promise that resolves when audio finishes playing
   async function playAudio(base64Audio) {
-    try {
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      if (audioCtx.state === 'suspended') await audioCtx.resume();
-      var binary = atob(base64Audio);
-      var bytes = new Uint8Array(binary.length);
-      for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      var audioBuffer = await audioCtx.decodeAudioData(bytes.buffer.slice(0));
-      var source = audioCtx.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(audioCtx.destination);
-      source.start(0);
-    } catch (e) {
-      console.log('Audio playback error:', e);
+    return new Promise(async function(resolve) {
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') await audioCtx.resume();
+        var binary = atob(base64Audio);
+        var bytes = new Uint8Array(binary.length);
+        for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        var audioBuffer = await audioCtx.decodeAudioData(bytes.buffer.slice(0));
+        var source = audioCtx.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(audioCtx.destination);
+        source.onended = resolve;
+        source.start(0);
+      } catch (e) {
+        console.log('Audio playback error:', e);
+        resolve();
+      }
+    });
+  }
+
+  // --- Ambient call-centre sound (synthesised — no external files) ---
+  function startAmbient() {
+    if (!audioCtx) return;
+    // Brown-noise room tone
+    var sr = audioCtx.sampleRate;
+    var buf = audioCtx.createBuffer(1, sr * 4, sr);
+    var d = buf.getChannelData(0);
+    var b0=0,b1=0,b2=0;
+    for (var i=0;i<d.length;i++){
+      var w=Math.random()*2-1;
+      b0=0.99886*b0+w*0.0555179; b1=0.99332*b1+w*0.0750759; b2=0.969*b2+w*0.153852;
+      d[i]=(b0+b1+b2)*0.035;
+    }
+    ambientSource = audioCtx.createBufferSource();
+    ambientSource.buffer = buf; ambientSource.loop = true;
+    ambientGain = audioCtx.createGain(); ambientGain.gain.value = 0.018;
+    var filt = audioCtx.createBiquadFilter(); filt.type='bandpass'; filt.frequency.value=700; filt.Q.value=0.7;
+    ambientSource.connect(filt); filt.connect(ambientGain); ambientGain.connect(audioCtx.destination);
+    ambientSource.start();
+    scheduleTyping();
+  }
+
+  function stopAmbient() {
+    if (ambientSource) { try { ambientSource.stop(); } catch(e){} ambientSource = null; }
+    if (typingTimeout) { clearTimeout(typingTimeout); typingTimeout = null; }
+  }
+
+  function scheduleTyping() {
+    if (!callMode) return;
+    typingTimeout = setTimeout(function() {
+      if (!callMode || isSpeaking) { scheduleTyping(); return; }
+      var n = 3 + Math.floor(Math.random() * 7);
+      for (var k=0; k<n; k++) {
+        (function(off) {
+          setTimeout(function() {
+            if (!audioCtx) return;
+            var cb = audioCtx.createBuffer(1, Math.floor(audioCtx.sampleRate*0.022), audioCtx.sampleRate);
+            var cd = cb.getChannelData(0);
+            for (var j=0;j<cd.length;j++) cd[j]=(Math.random()*2-1)*Math.exp(-j/(audioCtx.sampleRate*0.005));
+            var cs = audioCtx.createBufferSource(); cs.buffer=cb;
+            var cg = audioCtx.createGain(); cg.gain.value=0.03+Math.random()*0.025;
+            cs.connect(cg); cg.connect(audioCtx.destination); cs.start();
+          }, off);
+        })(k*(55+Math.random()*75));
+      }
+      scheduleTyping();
+    }, 2500 + Math.random() * 5000);
+  }
+
+  // Update header subtitle to reflect call state
+  function setCallStatus(state) {
+    var sub = document.getElementById('kup-header-sub');
+    if (!sub) return;
+    var map = { listening:'🎙 Escuchando...', thinking:'💭 Procesando...', speaking:'🔊 Respondiendo...', idle:'📞 En llamada' };
+    sub.textContent = map[state] || 'Responde al instante';
+  }
+
+  // Start mic in call-mode loop
+  function callListen() {
+    if (!recognition || !callMode) return;
+    inputEl.value = '';
+    isRecording = true;
+    micBtn.classList.add('kup-mic-recording');
+    setCallStatus('listening');
+    try { recognition.start(); } catch(e) {
+      isRecording = false;
+      micBtn.classList.remove('kup-mic-recording');
+      setTimeout(callListen, 600);
     }
   }
 
@@ -299,13 +396,19 @@
     recognition.onend = function() {
       isRecording = false;
       micBtn.classList.remove('kup-mic-recording');
-      if (inputEl.value.trim()) sendMessage();
+      var text = inputEl.value.trim();
+      if (text) {
+        sendMessage();
+      } else if (callMode) {
+        setTimeout(callListen, 400); // no speech detected — listen again
+      }
     };
 
     recognition.onerror = function(e) {
       isRecording = false;
       micBtn.classList.remove('kup-mic-recording');
       console.log('Speech recognition error:', e.error);
+      if (callMode && e.error !== 'aborted') setTimeout(callListen, 800);
     };
   } else {
     micBtn.style.display = 'none'; // hide mic if browser doesn't support it
@@ -325,13 +428,14 @@
   });
 
   async function sendMessage() {
-    inputEl.placeholder = 'Escribe o habla...';
+    if (!callMode) inputEl.placeholder = 'Escribe o habla...';
     var text = inputEl.value.trim();
     if (!text) return;
     inputEl.value = '';
     addMessage(text, 'user');
     history.push({ role: 'user', content: text });
     setLoading(true);
+    if (callMode) setCallStatus('thinking');
     try {
       var res = await fetch(API_URL, {
         method: 'POST',
@@ -343,12 +447,21 @@
       var reply = data.message || 'Lo siento, ha habido un error. Por favor escríbenos a info@kuphuka.com.';
       history.push({ role: 'assistant', content: reply });
       addMessage(reply, 'bot');
-      if (data.audio) playAudio(data.audio);
+      if (data.audio) {
+        isSpeaking = true;
+        if (callMode) setCallStatus('speaking');
+        await playAudio(data.audio);
+        isSpeaking = false;
+        if (callMode) callListen();
+      } else if (callMode) {
+        setTimeout(callListen, 400);
+      }
     } catch (e) {
       addMessage('Lo siento, no he podido conectar. Por favor inténtalo de nuevo o escríbenos a info@kuphuka.com.', 'bot');
+      if (callMode) setTimeout(callListen, 1000);
     }
     setLoading(false);
-    inputEl.focus();
+    if (!callMode) inputEl.focus();
   }
 
   var GREETING_TTS = 'Hola, soy el asistente de Kufuka. ¿En qué puedo ayudarte hoy?';
@@ -367,9 +480,37 @@
 
       addMessage(GREETING, 'bot');
       inputEl.focus();
-      greetingAudioPromise.then(function(data) {
-        if (data && data.audio) playAudio(data.audio);
+      greetingAudioPromise.then(async function(data) {
+        if (data && data.audio) {
+          isSpeaking = true;
+          await playAudio(data.audio);
+          isSpeaking = false;
+          if (callMode) callListen();
+        }
       });
+    }
+  });
+
+  callBtn.addEventListener('click', function() {
+    if (!recognition) return;
+    unlockAudio();
+    callMode = !callMode;
+    if (callMode) {
+      callBtn.classList.add('kup-call-active');
+      inputEl.disabled = true;
+      sendBtn.style.visibility = 'hidden';
+      startAmbient();
+      setCallStatus('idle');
+      // If greeting already played, start listening immediately
+      if (greeted && !isSpeaking) callListen();
+    } else {
+      callBtn.classList.remove('kup-call-active');
+      inputEl.disabled = false;
+      inputEl.placeholder = 'Escribe o habla...';
+      sendBtn.style.visibility = '';
+      stopAmbient();
+      setCallStatus(null);
+      if (isRecording) { try { recognition.stop(); } catch(e){} }
     }
   });
 
