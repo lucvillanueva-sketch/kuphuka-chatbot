@@ -1,6 +1,6 @@
 const { SYSTEM_PROMPT } = require('../knowledge');
 const { lookupOrders, buildCustomerContext, extractCredentials } = require('../lib/shopify');
-const { lookupSubscriptions, buildSubscriptionContext } = require('../lib/appstle');
+const { inferSubscriptionFromOrders } = require('../lib/appstle');
 
 const ALLOWED_ORIGINS = [
   'https://kuphuka.com',
@@ -153,22 +153,18 @@ module.exports = async function handler(req, res) {
   let customerContext = '';
   try {
     const { email, orderNumber } = extractCredentials(messages);
-    if (email && process.env.SHOPIFY_ACCESS_TOKEN) {
-      // Run Shopify order lookup and Appstle subscription lookup in parallel
-      const [orders, subscriptions] = await Promise.all([
-        orderNumber ? lookupOrders(email.toLowerCase(), orderNumber) : Promise.resolve([]),
-        process.env.APPSTLE_API_KEY
-          ? lookupSubscriptions(email.toLowerCase()).catch(err => { console.error('Appstle lookup error (non-fatal):', err.message); return []; })
-          : Promise.resolve([]),
-      ]);
+    if (email) {
+      // Fetch last 10 orders for this customer (used for both order details and subscription inference)
+      const allOrders = await lookupOrders(email.toLowerCase(), orderNumber, 10);
+      const matchedOrders = orderNumber ? allOrders : allOrders.slice(0, 1);
 
-      const orderCtx = orders.length ? buildCustomerContext(orders) : null;
-      const subCtx = buildSubscriptionContext(subscriptions);
+      const orderCtx = matchedOrders.length ? buildCustomerContext(matchedOrders) : null;
+      const subCtx = inferSubscriptionFromOrders(allOrders);
 
       if (orderCtx || subCtx) {
         customerContext = '\n\n' + [orderCtx, subCtx].filter(Boolean).join('\n\n') +
           '\n\nNOTA DEL SISTEMA: Los datos del cliente ya están verificados y cargados. NO vuelvas a pedir email ni número de pedido en esta conversación. Si aparece "Nombre del cliente", salúdale por su nombre de pila en este primer mensaje con sus datos y úsalo a lo largo de la conversación. Responde directamente usando los datos de arriba.';
-        console.log(`Customer context: ${email} → orders:${orders.length} subs:${subscriptions.length}`);
+        console.log(`Customer context: ${email} → orders:${allOrders.length} subCtx:${!!subCtx}`);
       }
     }
   } catch (err) {
