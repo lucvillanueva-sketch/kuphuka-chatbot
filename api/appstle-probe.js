@@ -81,27 +81,16 @@ module.exports = async function handler(req, res) {
     results.rest_header = { status: r1.status, ok: r1.ok };
   } catch (err) { results.rest_header = { error: err.message }; }
 
-  // Test 2: GraphQL with X-Shopify-Access-Token
+  // Test 2: GraphQL with exchanged shpat_ token
   try {
     const r2 = await fetch(`https://${DOMAIN}/admin/api/2024-01/graphql.json`, {
       method: 'POST',
-      headers: { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json' },
+      headers: { 'X-Shopify-Access-Token': activeToken, 'Content-Type': 'application/json' },
       body: JSON.stringify({ query, variables: { query: `email:${email}` } }),
     });
     const d2 = await r2.json();
-    results.graphql_header = { status: r2.status, data: d2 };
-  } catch (err) { results.graphql_header = { error: err.message }; }
-
-  // Test 3: GraphQL with Authorization: Bearer
-  try {
-    const r3 = await fetch(`https://${DOMAIN}/admin/api/2024-01/graphql.json`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, variables: { query: `email:${email}` } }),
-    });
-    const d3 = await r3.json();
-    results.graphql_bearer = { status: r3.status, data: d3 };
-  } catch (err) { results.graphql_bearer = { error: err.message }; }
+    results.graphql_with_exchanged_token = { status: r2.status, data: d2 };
+  } catch (err) { results.graphql_with_exchanged_token = { error: err.message }; }
 
   res.status(200).json({ tokenDebug, credsDebug, domainDebug, exchangedToken: exchangedToken ? exchangedToken.slice(0,8)+'...' : null, results });
 };
