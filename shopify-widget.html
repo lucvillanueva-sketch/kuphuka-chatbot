@@ -226,9 +226,11 @@
   var sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
   var callMode = false;
   var isSpeaking = false;
-  var ambientSource = null;
-  var ambientGain = null;
-  var typingTimeout = null;
+
+  // Ambient call-centre audio (real MP3, looping at low volume)
+  var ambientAudio = new Audio('https://cdn.shopify.com/s/files/1/0604/8763/0948/files/AMBOffc-Ambient_background_n-Elevenlabs.mp3?v=1779424731');
+  ambientAudio.loop = true;
+  ambientAudio.volume = 0.07;
 
   setTimeout(function () {
     widget.classList.add('kup-visible');
@@ -290,53 +292,15 @@
     });
   }
 
-  // --- Ambient call-centre sound (synthesised — no external files) ---
+  // --- Ambient call-centre sound (real MP3) ---
   function startAmbient() {
-    if (!audioCtx) return;
-    // Brown-noise room tone
-    var sr = audioCtx.sampleRate;
-    var buf = audioCtx.createBuffer(1, sr * 4, sr);
-    var d = buf.getChannelData(0);
-    var b0=0,b1=0,b2=0;
-    for (var i=0;i<d.length;i++){
-      var w=Math.random()*2-1;
-      b0=0.99886*b0+w*0.0555179; b1=0.99332*b1+w*0.0750759; b2=0.969*b2+w*0.153852;
-      d[i]=(b0+b1+b2)*0.035;
-    }
-    ambientSource = audioCtx.createBufferSource();
-    ambientSource.buffer = buf; ambientSource.loop = true;
-    ambientGain = audioCtx.createGain(); ambientGain.gain.value = 0.018;
-    var filt = audioCtx.createBiquadFilter(); filt.type='bandpass'; filt.frequency.value=700; filt.Q.value=0.7;
-    ambientSource.connect(filt); filt.connect(ambientGain); ambientGain.connect(audioCtx.destination);
-    ambientSource.start();
-    scheduleTyping();
+    ambientAudio.currentTime = 0;
+    ambientAudio.play().catch(function(){});
   }
 
   function stopAmbient() {
-    if (ambientSource) { try { ambientSource.stop(); } catch(e){} ambientSource = null; }
-    if (typingTimeout) { clearTimeout(typingTimeout); typingTimeout = null; }
-  }
-
-  function scheduleTyping() {
-    if (!callMode) return;
-    typingTimeout = setTimeout(function() {
-      if (!callMode || isSpeaking) { scheduleTyping(); return; }
-      var n = 3 + Math.floor(Math.random() * 7);
-      for (var k=0; k<n; k++) {
-        (function(off) {
-          setTimeout(function() {
-            if (!audioCtx) return;
-            var cb = audioCtx.createBuffer(1, Math.floor(audioCtx.sampleRate*0.022), audioCtx.sampleRate);
-            var cd = cb.getChannelData(0);
-            for (var j=0;j<cd.length;j++) cd[j]=(Math.random()*2-1)*Math.exp(-j/(audioCtx.sampleRate*0.005));
-            var cs = audioCtx.createBufferSource(); cs.buffer=cb;
-            var cg = audioCtx.createGain(); cg.gain.value=0.03+Math.random()*0.025;
-            cs.connect(cg); cg.connect(audioCtx.destination); cs.start();
-          }, off);
-        })(k*(55+Math.random()*75));
-      }
-      scheduleTyping();
-    }, 2500 + Math.random() * 5000);
+    ambientAudio.pause();
+    ambientAudio.currentTime = 0;
   }
 
   // Update header subtitle to reflect call state
