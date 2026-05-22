@@ -171,23 +171,36 @@ module.exports = async function handler(req, res) {
     console.error('Customer context error (non-fatal):', err.message);
   }
 
-  try {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+  const systemContent = SYSTEM_PROMPT + customerContext +
+    '\n\nIMPORTANTE: Responde siempre en máximo 2 frases cortas y directas. Sin listas, sin puntos, sin explicaciones largas. Ve al punto.' +
+    (customerContext ? '\n\nREGLA ABSOLUTA: Para cualquier dato del pedido (precio, transportista, tipo de pedido, estado) usa EXCLUSIVAMENTE los valores exactos del bloque DATOS DEL CLIENTE de arriba. Si el dato no está ahí, di que no tienes esa información. Está prohibido inventar o suponer valores.' : '');
+
+  const groqPayload = {
+    messages: [
+      { role: 'system', content: systemContent },
+      ...messages.slice(-10),
+    ],
+    max_tokens: 200,
+    temperature: 0.7,
+  };
+
+  // Try 70b for quality; fall back to 8b if rate-limited or unavailable
+  async function callGroq(model) {
+    return fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${groqApiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT + customerContext + '\n\nIMPORTANTE: Responde siempre en máximo 2 frases cortas y directas. Sin listas, sin puntos, sin explicaciones largas. Ve al punto.' + (customerContext ? '\n\nREGLA ABSOLUTA: Para cualquier dato del pedido (precio, transportista, tipo de pedido, estado) usa EXCLUSIVAMENTE los valores exactos del bloque DATOS DEL CLIENTE de arriba. Si el dato no está ahí, di que no tienes esa información. Está prohibido inventar o suponer valores.' : '') },
-          ...messages.slice(-10),
-        ],
-        max_tokens: 200,
-        temperature: 0.7,
-      }),
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${groqApiKey}` },
+      body: JSON.stringify({ ...groqPayload, model }),
     });
+  }
+
+  try {
+    let response = await callGroq('llama-3.3-70b-versatile');
+
+    // Fall back to fast 8b model on rate-limit or server error
+    if (!response.ok && (response.status === 429 || response.status >= 500)) {
+      console.warn(`Groq 70b failed (${response.status}), falling back to 8b`);
+      response = await callGroq('llama-3.1-8b-instant');
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
