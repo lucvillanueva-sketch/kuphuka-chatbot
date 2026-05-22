@@ -49,19 +49,37 @@ module.exports = async function handler(req, res) {
     }
   `;
 
+  const results = {};
+
+  // Test 1: REST API with X-Shopify-Access-Token (this worked before)
   try {
-    const r = await fetch(`https://${DOMAIN}/admin/api/2024-01/graphql.json`, {
+    const r1 = await fetch(`https://${DOMAIN}/admin/api/2024-01/shop.json`, {
+      headers: { 'X-Shopify-Access-Token': token },
+    });
+    results.rest_header = { status: r1.status, ok: r1.ok };
+  } catch (err) { results.rest_header = { error: err.message }; }
+
+  // Test 2: GraphQL with X-Shopify-Access-Token
+  try {
+    const r2 = await fetch(`https://${DOMAIN}/admin/api/2024-01/graphql.json`, {
       method: 'POST',
-      headers: {
-        'X-Shopify-Access-Token': token,
-        'Content-Type': 'application/json',
-      },
+      headers: { 'X-Shopify-Access-Token': token, 'Content-Type': 'application/json' },
       body: JSON.stringify({ query, variables: { query: `email:${email}` } }),
     });
+    const d2 = await r2.json();
+    results.graphql_header = { status: r2.status, data: d2 };
+  } catch (err) { results.graphql_header = { error: err.message }; }
 
-    const data = await r.json();
-    res.status(200).json({ tokenDebug, status: r.status, data });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  // Test 3: GraphQL with Authorization: Bearer
+  try {
+    const r3 = await fetch(`https://${DOMAIN}/admin/api/2024-01/graphql.json`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, variables: { query: `email:${email}` } }),
+    });
+    const d3 = await r3.json();
+    results.graphql_bearer = { status: r3.status, data: d3 };
+  } catch (err) { results.graphql_bearer = { error: err.message }; }
+
+  res.status(200).json({ tokenDebug, results });
 };
