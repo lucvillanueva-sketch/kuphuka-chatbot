@@ -107,6 +107,9 @@ R: Sí, disponible para la opción de compra única con dirección de envío en 
 P: ¿Puedo cancelar o pausar mi suscripción?
 R: Sí, en cualquier momento desde tu portal de cliente en https://kuphuka.com/account/login. Si tienes problemas, escríbenos a info@kuphuka.com y te enviamos un enlace de acceso directo.
 
+P: ¿Cuándo es mi próximo pedido? / ¿Cuándo me llega el siguiente envío?
+R: La fecha exacta de tu próximo pedido solo está disponible en tu portal de cliente en https://kuphuka.com/account/login. Puedes verla y cambiarla desde ahí en cualquier momento.
+
 P: ¿Tienen plan anual o trimestral?
 R: De momento solo tenemos dos opciones: compra única a 59€ o suscripción mensual (39€ el primer mes, luego 49€/mes).
 

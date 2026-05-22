@@ -1,6 +1,6 @@
 const { SYSTEM_PROMPT } = require('../knowledge');
 const { lookupOrders, buildCustomerContext, extractCredentials } = require('../lib/shopify');
-const { inferSubscriptionFromOrders } = require('../lib/appstle');
+const { detectSubscriptionFromOrders } = require('../lib/appstle');
 
 const ALLOWED_ORIGINS = [
   'https://kuphuka.com',
@@ -159,7 +159,7 @@ module.exports = async function handler(req, res) {
       const matchedOrders = orderNumber ? allOrders : allOrders.slice(0, 1);
 
       const orderCtx = matchedOrders.length ? buildCustomerContext(matchedOrders) : null;
-      const subCtx = inferSubscriptionFromOrders(allOrders);
+      const subCtx = detectSubscriptionFromOrders(allOrders);
 
       if (orderCtx || subCtx) {
         customerContext = '\n\n' + [orderCtx, subCtx].filter(Boolean).join('\n\n') +
