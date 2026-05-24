@@ -280,7 +280,7 @@ module.exports = async function handler(req, res) {
 
     function cleanForTTS(text) {
       return text
-        .replace(/https?:\/\/[^\s]+/g, '')                        // remove URLs
+        .replace(/[:\s]*https?:\/\/[^\s]+/g, '')                  // remove URLs and any preceding colon/space so sentence ends naturally
         .replace(/([a-zA-Z0-9._%+\-]+)@([a-zA-Z0-9.\-]+)\.([a-zA-Z]{2,})/g,
           (_, user, domain, tld) => `${user} arroba ${domain} punto ${tld}`) // info@kuphuka.com → info arroba kuphuka punto com
         .replace(/€\s*([\d,.]+)/g, '$1 euros')                    // €39 → 39 euros
