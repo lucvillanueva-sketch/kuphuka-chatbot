@@ -46,6 +46,41 @@ function detectEscalation(reply, lastUserMessage) {
     USER_ESCALATION_PHRASES.some(p => u.includes(p));
 }
 
+function cleanForTTS(text) {
+  return text
+    .replace(/[:\s]*https?:\/\/[^\s]+/g, '')
+    .replace(/([a-zA-Z0-9._%+\-]+)@([a-zA-Z0-9.\-]+)\.([a-zA-Z]{2,})/g,
+      (_, user, domain, tld) => `${user} arroba ${domain} punto ${tld}`)
+    .replace(/€\s*([\d,.]+)/g, '$1 euros')
+    .replace(/([\d,.]+)\s*€/g, '$1 euros')
+    .replace(/(\d+)\s*h\b/g, '$1 horas')
+    .replace(/(\d+)-(\d+)\s*h\b/g, '$1 a $2 horas')
+    .replace(/(\d+)\s*min\b/gi, '$1 minutos')
+    .replace(/(\d+)\s*s\b/g, '$1 segundos')
+    .replace(/1-click/gi, 'un clic')
+    .replace(/\bEE\.?UU\.?/gi, 'Estados Unidos')
+    .replace(/\bmcg\b/gi, 'microgramos')
+    .replace(/\bμg\b/g, 'microgramos')
+    .replace(/\bkcal\b/gi, 'kilocalorías')
+    .replace(/(\d+)\s*mg\b/gi, '$1 miligramos')
+    .replace(/(\d+)\s*ml\b/gi, '$1 mililitros')
+    .replace(/(\d+)\s*kg\b/gi, '$1 kilogramos')
+    .replace(/(\d+)\s*gr?\b/gi, '$1 gramos')
+    .replace(/\bUI\b/g, 'unidades internacionales')
+    .replace(/\bCoQ\s*10\b/gi, 'Coenzima Q diez')
+    .replace(/\betc\./gi, 'etcétera')
+    .replace(/\bvs\.?\b/gi, 'versus')
+    .replace(/\baprox\.?\b/gi, 'aproximadamente')
+    .replace(/\bnº\b/gi, 'número')
+    .replace(/Kuphuka/gi, 'Kufuka')
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/#(\d+)/g, 'número $1')
+    .replace(/[#•]/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 async function logToAirtable(userMessage, botReply, escalated, sessionId) {
   const apiKey = process.env.AIRTABLE_API_KEY;
   const baseId = process.env.AIRTABLE_BASE_ID;
@@ -57,10 +92,7 @@ async function logToAirtable(userMessage, botReply, escalated, sessionId) {
   try {
     const res = await fetch(`https://api.airtable.com/v0/${baseId}/${tableId}`, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         fields: {
           Date: new Date().toISOString(),
@@ -72,11 +104,8 @@ async function logToAirtable(userMessage, botReply, escalated, sessionId) {
       }),
     });
     const data = await res.json();
-    if (!res.ok) {
-      console.error('Airtable HTTP error:', res.status, JSON.stringify(data));
-    } else {
-      console.log('Airtable logged OK, id:', data.id);
-    }
+    if (!res.ok) console.error('Airtable HTTP error:', res.status, JSON.stringify(data));
+    else console.log('Airtable logged OK, id:', data.id);
   } catch (err) {
     console.error('Airtable exception:', err.message);
   }
@@ -85,21 +114,15 @@ async function logToAirtable(userMessage, botReply, escalated, sessionId) {
 async function sendEscalationEmail(messages, botReply) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return;
-
   const transcript = [...messages, { role: 'assistant', content: botReply }]
     .map(m => `<tr>
       <td style="padding:6px 10px;color:#888;white-space:nowrap">${m.role === 'user' ? 'Cliente' : 'Bot'}</td>
       <td style="padding:6px 10px">${m.content.replace(/</g, '&lt;')}</td>
-    </tr>`)
-    .join('');
-
+    </tr>`).join('');
   try {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         from: 'Kuphuka Chatbot <onboarding@resend.dev>',
         to: ['lucvillanueva@gmail.com'],
@@ -108,20 +131,14 @@ async function sendEscalationEmail(messages, botReply) {
           <h2 style="color:#2a7d4f">Un cliente necesita atención humana</h2>
           <p><strong>Fecha:</strong> ${new Date().toLocaleString('es-ES', { timeZone: 'Europe/Madrid' })}</p>
           <h3>Conversación completa:</h3>
-          <table style="border-collapse:collapse;width:100%;font-family:sans-serif;font-size:14px">
-            ${transcript}
-          </table>
-          <br>
-          <p style="color:#888;font-size:12px">Responde al cliente en info@kuphuka.com</p>
+          <table style="border-collapse:collapse;width:100%;font-family:sans-serif;font-size:14px">${transcript}</table>
+          <br><p style="color:#888;font-size:12px">Responde al cliente en info@kuphuka.com</p>
         `,
       }),
     });
     const data = await res.json();
-    if (!res.ok) {
-      console.error('Resend HTTP error:', res.status, JSON.stringify(data));
-    } else {
-      console.log('Resend email sent OK, id:', data.id);
-    }
+    if (!res.ok) console.error('Resend HTTP error:', res.status, JSON.stringify(data));
+    else console.log('Resend email sent OK, id:', data.id);
   } catch (err) {
     console.error('Resend exception:', err.message);
   }
@@ -169,7 +186,7 @@ async function sendShopifyAlertEmail(errorMessage) {
           <h2 style="color:#e53e3e">Error de autenticación con Shopify</h2>
           <p><strong>Fecha:</strong> ${new Date().toLocaleString('es-ES', { timeZone: 'Europe/Madrid' })}</p>
           <p><strong>Error:</strong> ${String(errorMessage).replace(/</g, '&lt;')}</p>
-          <p>El chatbot no puede acceder a datos de pedidos hasta que se resuelva. Revisa las credenciales en Vercel (SHOPIFY_CLIENT_ID, SHOPIFY_CLIENT_SECRET).</p>
+          <p>El chatbot no puede acceder a datos de pedidos. Revisa las credenciales en Vercel (SHOPIFY_CLIENT_ID, SHOPIFY_CLIENT_SECRET).</p>
         `,
       }),
     });
@@ -204,8 +221,7 @@ module.exports = async function handler(req, res) {
   // Fire new-session email on first message of each unique session (non-blocking)
   if (sessionId && !seenSessions.has(sessionId) && messages.length === 1) {
     seenSessions.add(sessionId);
-    const firstMsg = messages[0]?.content || '';
-    sendNewSessionEmail(sessionId, firstMsg).catch(() => {});
+    sendNewSessionEmail(sessionId, messages[0]?.content || '').catch(() => {});
   } else if (sessionId) {
     seenSessions.add(sessionId);
   }
@@ -217,13 +233,10 @@ module.exports = async function handler(req, res) {
   try {
     const { email, orderNumber } = extractCredentials(messages);
     if (email) {
-      // Fetch last 10 orders for this customer (used for both order details and subscription inference)
       const allOrders = await lookupOrders(email.toLowerCase(), orderNumber, 10);
       const matchedOrders = orderNumber ? allOrders : allOrders.slice(0, 1);
-
       const orderCtx = matchedOrders.length ? buildCustomerContext(matchedOrders) : null;
       const subCtx = detectSubscriptionFromOrders(allOrders);
-
       if (orderCtx || subCtx) {
         customerContext = '\n\n' + [orderCtx, subCtx].filter(Boolean).join('\n\n') +
           '\n\nNOTA DEL SISTEMA: Los datos del cliente ya están verificados y cargados. NO vuelvas a pedir email ni número de pedido en esta conversación. Si aparece "Nombre del cliente", salúdale por su nombre de pila en este primer mensaje con sus datos y úsalo a lo largo de la conversación. Responde directamente usando los datos de arriba.';
@@ -232,7 +245,6 @@ module.exports = async function handler(req, res) {
     }
   } catch (err) {
     console.error('Customer context error (non-fatal):', err.message);
-    // Alert if this looks like an auth failure (token expired or invalid)
     if (/401|403|auth|token|credential/i.test(err.message)) {
       sendShopifyAlertEmail(err.message).catch(() => {});
     }
@@ -243,10 +255,7 @@ module.exports = async function handler(req, res) {
     (customerContext ? '\n\nREGLA ABSOLUTA: Para cualquier dato del pedido (precio, transportista, tipo de pedido, estado) usa EXCLUSIVAMENTE los valores exactos del bloque DATOS DEL CLIENTE de arriba. Si el dato no está ahí, di que no tienes esa información. Está prohibido inventar o suponer valores.' : '');
 
   const groqPayload = {
-    messages: [
-      { role: 'system', content: systemContent },
-      ...messages.slice(-10),
-    ],
+    messages: [{ role: 'system', content: systemContent }, ...messages.slice(-10)],
     max_tokens: 200,
     temperature: 0.7,
   };
@@ -256,108 +265,129 @@ module.exports = async function handler(req, res) {
     return fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${groqApiKey}` },
-      body: JSON.stringify({ ...groqPayload, model }),
+      body: JSON.stringify({ ...groqPayload, model, stream: true }),
     });
   }
 
   try {
-    let response = await callGroq('llama-3.3-70b-versatile');
-
-    // Fall back to fast 8b model on rate-limit or server error
-    if (!response.ok && (response.status === 429 || response.status >= 500)) {
-      console.warn(`Groq 70b failed (${response.status}), falling back to 8b`);
-      response = await callGroq('llama-3.1-8b-instant');
+    let groqRes = await callGroq('llama-3.3-70b-versatile');
+    if (!groqRes.ok && (groqRes.status === 429 || groqRes.status >= 500)) {
+      console.warn(`Groq 70b failed (${groqRes.status}), falling back to 8b`);
+      groqRes = await callGroq('llama-3.1-8b-instant');
     }
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Groq API error:', response.status, errorText);
+    if (!groqRes.ok) {
+      const errorText = await groqRes.text();
+      console.error('Groq API error:', groqRes.status, errorText);
       return res.status(502).json({ error: 'Model unavailable' });
     }
 
-    const data = await response.json();
-    const reply = data.choices?.[0]?.message?.content || 'Lo siento, no pude generar una respuesta en este momento.';
+    // Switch to Server-Sent Events streaming
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('X-Accel-Buffering', 'no');
 
-    function cleanForTTS(text) {
-      return text
-        .replace(/[:\s]*https?:\/\/[^\s]+/g, '')                  // remove URLs and any preceding colon/space so sentence ends naturally
-        .replace(/([a-zA-Z0-9._%+\-]+)@([a-zA-Z0-9.\-]+)\.([a-zA-Z]{2,})/g,
-          (_, user, domain, tld) => `${user} arroba ${domain} punto ${tld}`) // info@kuphuka.com → info arroba kuphuka punto com
-        .replace(/€\s*([\d,.]+)/g, '$1 euros')                    // €39 → 39 euros
-        .replace(/([\d,.]+)\s*€/g, '$1 euros')                    // 39€ → 39 euros
-        .replace(/(\d+)\s*h\b/g, '$1 horas')                      // 24h → 24 horas
-        .replace(/(\d+)-(\d+)\s*h\b/g, '$1 a $2 horas')           // 24-48h → 24 a 48 horas
-        .replace(/(\d+)\s*min\b/gi, '$1 minutos')                  // 30min → 30 minutos
-        .replace(/(\d+)\s*s\b/g, '$1 segundos')                   // 10s → 10 segundos
-        .replace(/1-click/gi, 'un clic')                          // 1-click → un clic
-        // Acronyms & units
-        .replace(/\bEE\.?UU\.?/gi, 'Estados Unidos')              // EEUU / EE.UU.
-        .replace(/\bmcg\b/gi, 'microgramos')                      // mcg → microgramos
-        .replace(/\bμg\b/g, 'microgramos')                        // μg → microgramos
-        .replace(/\bkcal\b/gi, 'kilocalorías')                    // kcal → kilocalorías
-        .replace(/(\d+)\s*mg\b/gi, '$1 miligramos')               // 50mg → 50 miligramos
-        .replace(/(\d+)\s*ml\b/gi, '$1 mililitros')               // 200ml → 200 mililitros
-        .replace(/(\d+)\s*kg\b/gi, '$1 kilogramos')               // 2kg → 2 kilogramos
-        .replace(/(\d+)\s*gr?\b/gi, '$1 gramos')                  // 13g / 13gr → 13 gramos
-        .replace(/\bUI\b/g, 'unidades internacionales')           // UI → unidades internacionales
-        .replace(/\bCoQ\s*10\b/gi, 'Coenzima Q diez')             // CoQ10 → Coenzima Q diez
-        .replace(/\betc\./gi, 'etcétera')                         // etc. → etcétera
-        .replace(/\bvs\.?\b/gi, 'versus')                         // vs / vs. → versus
-        .replace(/\baprox\.?\b/gi, 'aproximadamente')             // aprox → aproximadamente
-        .replace(/\bnº\b/gi, 'número')                            // nº → número
-        // Brand & markdown
-        .replace(/Kuphuka/gi, 'Kufuka')                           // fix brand pronunciation
-        .replace(/\*\*(.*?)\*\*/g, '$1')                          // strip bold markdown
-        .replace(/\*(.*?)\*/g, '$1')                              // strip italic markdown
-        .replace(/#(\d+)/g, 'número $1')                          // #1042 → número 1042
-        .replace(/[#•]/g, '')                                     // strip remaining markdown symbols
-        .replace(/\s{2,}/g, ' ')                                  // collapse extra spaces
-        .trim();
+    function sse(obj) {
+      res.write('data: ' + JSON.stringify(obj) + '\n\n');
     }
 
-    const lastUserMessage = messages[messages.length - 1]?.content || '';
-    const escalated = detectEscalation(reply, lastUserMessage);
-
-    // Run logging and TTS in parallel
     const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
     const VOICE_ID = 'PksrhvpHrGUgesnsmLTX';
 
-    const tasks = [logToAirtable(lastUserMessage, reply, escalated, sessionId)];
-    if (escalated) tasks.push(sendEscalationEmail(messages, reply));
-
-    let audioBase64 = null;
-    if (elevenLabsKey) {
-      const [logResult, ttsResult] = await Promise.allSettled([
-        Promise.allSettled(tasks),
-        fetch(`https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`, {
+    // TTS a single sentence chunk; returns base64 audio or null
+    async function ttsChunk(text) {
+      if (!elevenLabsKey) return null;
+      const cleaned = cleanForTTS(text).slice(0, 500);
+      if (!cleaned.trim()) return null;
+      try {
+        const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`, {
           method: 'POST',
-          headers: {
-            'xi-api-key': elevenLabsKey,
-            'Content-Type': 'application/json',
-          },
+          headers: { 'xi-api-key': elevenLabsKey, 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            text: cleanForTTS(reply).slice(0, 1000),
+            text: cleaned,
             model_id: 'eleven_turbo_v2_5',
             voice_settings: { stability: 0.5, similarity_boost: 0.8, speed: 1.2 },
           }),
-        }),
-      ]);
-
-      if (ttsResult.status === 'fulfilled' && ttsResult.value.ok) {
-        const audioBuffer = await ttsResult.value.arrayBuffer();
-        audioBase64 = Buffer.from(audioBuffer).toString('base64');
-        console.log(`TTS OK — ${reply.length} chars, ${audioBuffer.byteLength} bytes`);
-      } else {
-        console.error('TTS failed:', ttsResult.reason || ttsResult.value?.status);
-        await Promise.allSettled(tasks);
-      }
-    } else {
-      await Promise.allSettled(tasks);
+        });
+        if (!r.ok) { console.error('TTS chunk failed:', r.status); return null; }
+        const buf = await r.arrayBuffer();
+        console.log(`TTS chunk OK — ${text.length} chars, ${buf.byteLength} bytes`);
+        return Buffer.from(buf).toString('base64');
+      } catch (e) { console.error('TTS chunk exception:', e.message); return null; }
     }
 
-    res.status(200).json({ message: reply, audio: audioBase64 });
+    // Read Groq SSE stream, buffer tokens, flush complete sentences to TTS
+    const reader = groqRes.body.getReader();
+    const decoder = new TextDecoder();
+    let pending = '';   // raw bytes waiting to be parsed as SSE events
+    let textBuf = '';   // tokens waiting for a sentence boundary
+    let fullText = '';  // entire response accumulated for logging
+    const MIN_SPLIT = 25; // minimum chars before splitting on punctuation
+
+    try {
+      outer: while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        pending += decoder.decode(value, { stream: true });
+
+        let sep;
+        while ((sep = pending.indexOf('\n\n')) !== -1) {
+          const line = pending.slice(0, sep).trim();
+          pending = pending.slice(sep + 2);
+
+          if (!line.startsWith('data:')) continue;
+          const raw = line.replace(/^data:\s*/, '');
+          if (raw === '[DONE]') break outer;
+
+          let token;
+          try { token = JSON.parse(raw).choices?.[0]?.delta?.content || ''; }
+          catch { continue; }
+          if (!token) continue;
+
+          textBuf += token;
+          fullText += token;
+          sse({ type: 'token', content: token }); // text appears in real time
+
+          // Flush a complete sentence to TTS as soon as one is ready
+          let m;
+          while (textBuf.length >= MIN_SPLIT &&
+                 (m = textBuf.match(/^(.{15,}?[.!?])(?:\s+|$)/s))) {
+            const sentence = m[1].trim();
+            textBuf = textBuf.slice(m[0].length);
+            const audio = await ttsChunk(sentence);
+            sse({ type: 'audio', data: audio });
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    // Flush any remaining text after stream ends
+    if (textBuf.trim()) {
+      const audio = await ttsChunk(textBuf.trim());
+      sse({ type: 'audio', data: audio });
+    }
+
+    // Post-response: log + escalation (after streaming so it doesn't delay the client)
+    const lastUserMessage = messages[messages.length - 1]?.content || '';
+    const escalated = detectEscalation(fullText, lastUserMessage);
+    const tasks = [logToAirtable(lastUserMessage, fullText, escalated, sessionId)];
+    if (escalated) tasks.push(sendEscalationEmail(messages, fullText));
+    await Promise.allSettled(tasks);
+
+    sse({ type: 'done', escalated });
+    res.end();
+
   } catch (err) {
     console.error('Handler error:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Internal server error' });
+    } else {
+      try {
+        res.write('data: ' + JSON.stringify({ type: 'error', message: 'Internal server error' }) + '\n\n');
+        res.end();
+      } catch {}
+    }
   }
 };

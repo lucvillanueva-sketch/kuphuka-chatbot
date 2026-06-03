@@ -400,31 +400,89 @@
     history.push({ role: 'user', content: text });
     setLoading(true);
     if (callMode) setCallStatus('thinking');
+
+    // Bot message div populated incrementally as tokens stream in
+    var msgDiv = document.createElement('div');
+    msgDiv.className = 'kup-msg kup-msg-bot';
+    messagesEl.insertBefore(msgDiv, typingEl);
+
+    var fullReply = '';
+    var audioQueue = [];
+    var audioPlaying = false;
+    var streamDone = false;
+
+    function onAudioQueueDrained() {
+      if (streamDone && audioQueue.length === 0 && !audioPlaying && callMode) {
+        callListen();
+      }
+    }
+
+    function playNextAudio() {
+      if (audioPlaying || audioQueue.length === 0) return;
+      var chunk = audioQueue.shift();
+      if (!chunk) { onAudioQueueDrained(); return; } // null = TTS unavailable
+      audioPlaying = true;
+      isSpeaking = true;
+      if (callMode) setCallStatus('speaking');
+      playAudio(chunk).then(function() {
+        audioPlaying = false;
+        isSpeaking = false;
+        if (audioQueue.length > 0) { playNextAudio(); } else { onAudioQueueDrained(); }
+      });
+    }
+
     try {
-      var res = await fetch(API_URL, {
+      var response = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: history, sessionId: sessionId })
       });
-      if (!res.ok) throw new Error('Network error');
-      var data = await res.json();
-      var reply = data.message || 'Lo siento, ha habido un error. Por favor escríbenos a info@kuphuka.com.';
-      history.push({ role: 'assistant', content: reply });
-      addMessage(reply, 'bot');
-      if (data.audio) {
-        isSpeaking = true;
-        if (callMode) setCallStatus('speaking');
-        await playAudio(data.audio);
-        isSpeaking = false;
-        if (callMode) callListen();
-      } else if (callMode) {
-        setTimeout(callListen, 400);
+      if (!response.ok) throw new Error('Network error ' + response.status);
+
+      setLoading(false); // hide typing dots — streamed text takes over
+      var reader = response.body.getReader();
+      var decoder = new TextDecoder();
+      var partial = '';
+
+      while (true) {
+        var chunk = await reader.read();
+        if (chunk.done) break;
+        partial += decoder.decode(chunk.value, { stream: true });
+
+        var boundary;
+        while ((boundary = partial.indexOf('\n\n')) !== -1) {
+          var eventStr = partial.slice(0, boundary).trim();
+          partial = partial.slice(boundary + 2);
+          if (!eventStr.startsWith('data:')) continue;
+          var evt;
+          try { evt = JSON.parse(eventStr.replace(/^data:\s*/, '')); } catch { continue; }
+
+          if (evt.type === 'token') {
+            fullReply += evt.content;
+            msgDiv.textContent = fullReply; // plain text while streaming
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+          } else if (evt.type === 'audio') {
+            audioQueue.push(evt.data);
+            playNextAudio();
+          } else if (evt.type === 'done') {
+            streamDone = true;
+            msgDiv.innerHTML = linkify(fullReply); // apply links + formatting at end
+            history.push({ role: 'assistant', content: fullReply });
+            if (!audioPlaying && audioQueue.length === 0 && callMode) setTimeout(callListen, 400);
+          } else if (evt.type === 'error') {
+            msgDiv.innerHTML = linkify('Lo siento, ha habido un error. Escríbenos a info@kuphuka.com.');
+          }
+        }
       }
     } catch (e) {
-      addMessage('Lo siento, no he podido conectar. Por favor inténtalo de nuevo o escríbenos a info@kuphuka.com.', 'bot');
+      console.error('sendMessage error:', e);
+      if (!fullReply) {
+        msgDiv.innerHTML = linkify('Lo siento, no he podido conectar. Por favor inténtalo de nuevo o escríbenos a info@kuphuka.com.');
+      }
+      setLoading(false);
       if (callMode) setTimeout(callListen, 1000);
     }
-    setLoading(false);
+
     if (!callMode) inputEl.focus();
   }
 
