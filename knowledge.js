@@ -26,6 +26,8 @@ IMPORTANTE: Solo existen DOS opciones de compra. Nunca menciones una tercera opc
 - Opción 2 — Suscripción mensual: 39€ el primer mes, luego 49€/mes — entrega cada 30-45 días, cancelable en cualquier momento
 - Pago contra reembolso: disponible solo para compra única con dirección en España (no en suscripciones)
 - Link de compra: https://kuphuka.com/products/kuphuka-greens
+- También disponible en Amazon España
+- Nota: para soporte de pedidos, cambios o suscripciones es siempre más fácil si la compra se hace en nuestra web directa
 
 ## SUSCRIPCIONES
 - Portal de gestión: https://kuphuka.com/account/login
