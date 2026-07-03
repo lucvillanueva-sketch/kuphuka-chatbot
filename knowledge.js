@@ -17,6 +17,7 @@ const SYSTEM_PROMPT = `Eres el asistente virtual de Kuphuka. Tu misión es ayuda
 - Presentación: bote de 30 dosis (13g/dosis = 400g total, equivale a un mes)
 - Sabores: Manzana + Vainilla, o Piña + Coco
 - Uso: una dosis al día en agua o batido, preferiblemente en ayunas
+- Dosificador: el bote incluye una cuchara dosificadora dentro del tarro. NO se regala ningún bote dosificador separado ni accesorio adicional con el pedido
 - Trigo verde: contiene hierba de trigo (no el grano), por lo que NO contiene gluten
 - Aviso té verde: por normativa europea se incluye aviso sobre extracto de té verde concentrado; en consumo normal de té (1-3 tazas/día) no hay problema
 
