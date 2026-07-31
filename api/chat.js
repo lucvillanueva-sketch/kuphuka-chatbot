@@ -1,6 +1,8 @@
 const { SYSTEM_PROMPT } = require('../knowledge');
 const { lookupOrders, buildCustomerContext, extractCredentials } = require('../lib/shopify');
 const { detectSubscriptionFromOrders } = require('../lib/appstle');
+const { kvEnabled, getSession, saveSession } = require('../lib/store');
+const { notifyNewSession, notifyExchange, notifyAwaitingHuman } = require('../lib/telegram');
 
 const ALLOWED_ORIGINS = [
   'https://kuphuka.com',
@@ -226,6 +228,33 @@ module.exports = async function handler(req, res) {
     seenSessions.add(sessionId);
   }
 
+  const lastUserMessage = messages[messages.length - 1]?.content || '';
+
+  // --- Live session: mirror to Telegram, honour operator takeover ---
+  let liveSession = null;
+  if (sessionId && kvEnabled()) {
+    try {
+      liveSession = await getSession(sessionId);
+
+      // First contact — open the Telegram thread for this conversation
+      if (!liveSession.rootMsgId) {
+        liveSession.rootMsgId = await notifyNewSession(sessionId);
+      }
+
+      liveSession.messages.push({ role: 'user', content: lastUserMessage, at: Date.now() });
+      await saveSession(sessionId, liveSession);
+
+      // Operator is in control — stay silent and let them answer
+      if (liveSession.humanActive) {
+        await notifyAwaitingHuman(sessionId, lastUserMessage, liveSession.rootMsgId);
+        return res.status(200).json({ humanMode: true });
+      }
+    } catch (err) {
+      console.error('Live session error (non-fatal):', err.message);
+      liveSession = null;
+    }
+  }
+
   const groqApiKey = process.env.GROQ_API_KEY;
 
   // Auto-inject customer order + subscription data if email found in conversation
@@ -370,10 +399,17 @@ module.exports = async function handler(req, res) {
     }
 
     // Post-response: log + escalation (after streaming so it doesn't delay the client)
-    const lastUserMessage = messages[messages.length - 1]?.content || '';
     const escalated = detectEscalation(fullText, lastUserMessage);
     const tasks = [logToAirtable(lastUserMessage, fullText, escalated, sessionId)];
     if (escalated) tasks.push(sendEscalationEmail(messages, fullText));
+
+    // Mirror the exchange to Telegram so the operator can jump in
+    if (liveSession) {
+      liveSession.messages.push({ role: 'assistant', content: fullText, at: Date.now() });
+      tasks.push(saveSession(sessionId, liveSession));
+      tasks.push(notifyExchange(sessionId, lastUserMessage, fullText, liveSession.rootMsgId));
+    }
+
     await Promise.allSettled(tasks);
 
     sse({ type: 'done', escalated });

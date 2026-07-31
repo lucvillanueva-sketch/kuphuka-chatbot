@@ -95,6 +95,21 @@
     margin-left: 40px !important; margin-right: 4px !important;
     padding-left: 16px !important; padding-right: 16px !important;
   }
+  .kup-msg-human {
+    background: #eef4ff; color: #1a1a1a;
+    border: 1px solid #cddffb;
+    border-bottom-left-radius: 4px; align-self: flex-start;
+  }
+  .kup-msg-human::before {
+    content: 'Equipo Kuphuka';
+    display: block; font-size: 10.5px; font-weight: 500;
+    color: #3b6fc4; margin-bottom: 3px; letter-spacing: 0.2px;
+  }
+  .kup-notice {
+    align-self: center; font-size: 11px; color: #8a9a90;
+    background: #f4f7f5; border-radius: 10px; padding: 5px 12px;
+    max-width: 90%; text-align: center;
+  }
   #kup-typing {
     display: none; align-self: flex-start; background: #f0f6f2;
     border-radius: 18px; border-bottom-left-radius: 4px; padding: 10px 14px;
@@ -210,6 +225,7 @@
 (function () {
   var API_URL = 'https://kuphuka-chatbot.vercel.app/api/chat';
   var TTS_URL = 'https://kuphuka-chatbot.vercel.app/api/tts';
+  var POLL_URL = 'https://kuphuka-chatbot.vercel.app/api/poll';
   var GREETING = '¡Hola! Soy el asistente de Kuphuka 👋 Puedo ayudarte con dudas sobre el producto, ingredientes, envíos o suscripciones. ¿Qué te gustaría saber?';
 
   var widget = document.getElementById('kup-widget');
@@ -244,9 +260,15 @@
       .replace(/\n/g, '<br>');
   }
 
+  var ROLE_CLASS = {
+    user: 'kup-msg kup-msg-user',
+    human: 'kup-msg kup-msg-human',
+    notice: 'kup-notice',
+  };
+
   function addMessage(text, role) {
     var div = document.createElement('div');
-    div.className = 'kup-msg ' + (role === 'user' ? 'kup-msg-user' : 'kup-msg-bot');
+    div.className = ROLE_CLASS[role] || 'kup-msg kup-msg-bot';
     div.innerHTML = linkify(text);
     messagesEl.insertBefore(div, typingEl);
     messagesEl.scrollTop = messagesEl.scrollHeight;
@@ -301,6 +323,37 @@
   function stopAmbient() {
     ambientAudio.pause();
     ambientAudio.currentTime = 0;
+  }
+
+  // --- Operator takeover: poll for messages typed by the team ---
+  var pollCursor = 0;
+  var humanActive = false;
+  var pollTimer = null;
+
+  async function pollLoop() {
+    try {
+      var r = await fetch(POLL_URL + '?sessionId=' + encodeURIComponent(sessionId) + '&since=' + pollCursor);
+      if (r.ok) {
+        var d = await r.json();
+        if (d.enabled === false) return; // store not configured — stop polling
+        pollCursor = d.cursor || pollCursor;
+
+        if (d.humanActive && !humanActive) {
+          addMessage('Un miembro del equipo se ha unido a la conversación.', 'notice');
+        }
+        humanActive = Boolean(d.humanActive);
+
+        (d.messages || []).forEach(function (m) {
+          addMessage(m.content, m.role === 'human' ? 'human' : 'notice');
+        });
+      }
+    } catch (e) { /* transient — try again next tick */ }
+    pollTimer = setTimeout(pollLoop, 3000);
+  }
+
+  function startPolling() {
+    if (pollTimer) return;
+    pollTimer = setTimeout(pollLoop, 3000);
   }
 
   // Update header subtitle to reflect call state
@@ -439,6 +492,16 @@
       });
       if (!response.ok) throw new Error('Network error ' + response.status);
 
+      // A human has taken over — no bot reply is coming, they'll answer via polling
+      if ((response.headers.get('content-type') || '').indexOf('application/json') !== -1) {
+        var jsonBody = await response.json();
+        if (jsonBody.humanMode) {
+          msgDiv.remove();
+          setLoading(false);
+          return;
+        }
+      }
+
       setLoading(false); // hide typing dots — streamed text takes over
       var reader = response.body.getReader();
       var decoder = new TextDecoder();
@@ -493,6 +556,7 @@
     widget.classList.toggle('kup-open');
     if (widget.classList.contains('kup-open') && !greeted) {
       greeted = true;
+      startPolling();
       // Fetch greeting audio in parallel with the typing delay
       var greetingAudioPromise = fetch(TTS_URL, {
         method: 'POST',

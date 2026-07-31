@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Asistente Kuphuka</title>
+
+  <!-- Fonts: Playfair Display as stand-in for Kalendas (serif headings),
+              Inter as stand-in for Watford (body). On Shopify, the real
+              brand fonts will load automatically via the theme. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── Page background ── */
+    html, body {
+      height: 100%;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background-color: #0c1f14;
+      background-image:
+        linear-gradient(to bottom, rgba(10,25,15,0.82) 0%, rgba(10,25,15,0.70) 50%, rgba(10,25,15,0.88) 100%),
+        url('https://cdn.shopify.com/s/files/1/0604/8763/0948/files/replicate-prediction-wxtc4gmt2xrmy0cx5b6rjqx814.jpg?v=1778096434');
+      background-size: cover;
+      background-position: center;
+      background-attachment: fixed;
+    }
+
+    /* ── Header ── */
+    #sa-header {
+      padding: 20px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      background: rgba(10,25,15,0.4);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+
+    #sa-logo img {
+      height: 36px;
+      width: auto;
+      display: block;
+    }
+
+    #sa-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: rgba(255,255,255,0.7);
+      font-size: 12.5px;
+      font-weight: 400;
+      letter-spacing: 0.3px;
+    }
+    #sa-status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #7ee8a2;
+      animation: sa-pulse 2.5s ease-in-out infinite;
+    }
+    @keyframes sa-pulse {
+      0%,100%{opacity:1; transform:scale(1)}
+      50%{opacity:0.5; transform:scale(0.85)}
+    }
+
+    /* ── Main ── */
+    #sa-main {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 28px 16px 16px;
+    }
+
+    /* ── Chat card (glassmorphism) ── */
+    #sa-chat {
+      width: 100%;
+      max-width: 660px;
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 140px);
+      min-height: 480px;
+      border-radius: 22px;
+      overflow: hidden;
+      background: rgba(255,255,255,0.93);
+      box-shadow:
+        0 24px 64px rgba(0,0,0,0.35),
+        0 0 0 1px rgba(255,255,255,0.12);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+    }
+
+    /* ── Chat header inside card ── */
+    #sa-chat-header {
+      background: linear-gradient(135deg, #1e5c39 0%, #2a7d4f 100%);
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-shrink: 0;
+    }
+    #sa-avatar {
+      width: 46px; height: 46px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.35);
+      overflow: hidden;
+      flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    #sa-avatar img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      object-position: center top;
+      display: block;
+    }
+    #sa-chat-header-text {}
+    #sa-chat-title {
+      color: white;
+      font-family: 'Playfair Display', 'Kalendas Plus', Georgia, serif;
+      font-size: 17px;
+      font-weight: 600;
+      letter-spacing: -0.2px;
+    }
+    #sa-chat-sub {
+      color: rgba(255,255,255,0.72);
+      font-size: 12px;
+      margin-top: 3px;
+      font-weight: 300;
+      letter-spacing: 0.2px;
+    }
+
+    /* ── Intro strip ── */
+    #sa-intro {
+      background: linear-gradient(to right, #f0f8f4, #eaf5ef);
+      border-bottom: 1px solid #d8ede3;
+      padding: 14px 22px;
+      font-size: 13px;
+      color: #2d5c3e;
+      line-height: 1.5;
+      flex-shrink: 0;
+      font-style: italic;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-weight: 400;
+    }
+
+    /* ── Messages ── */
+    #sa-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      scroll-behavior: smooth;
+      background: white;
+    }
+    #sa-messages::-webkit-scrollbar { width: 4px; }
+    #sa-messages::-webkit-scrollbar-thumb { background: #c8e6d4; border-radius: 4px; }
+
+    .sa-msg {
+      max-width: 76%;
+      padding: 12px 16px;
+      border-radius: 18px;
+      font-size: 13.5px;
+      line-height: 1.6;
+      word-break: break-word;
+      font-weight: 400;
+    }
+    .sa-msg a { color: #2a7d4f; }
+    .sa-msg-bot {
+      background: #f0f6f2;
+      color: #1a1a1a;
+      border-bottom-left-radius: 4px;
+      align-self: flex-start;
+    }
+    .sa-msg-user {
+      background: linear-gradient(135deg, #2a7d4f, #1e5c39);
+      color: white;
+      border-bottom-right-radius: 4px;
+      align-self: flex-end;
+    }
+
+    #sa-typing {
+      display: none;
+      align-self: flex-start;
+      background: #f0f6f2;
+      border-radius: 18px;
+      border-bottom-left-radius: 4px;
+      padding: 12px 16px;
+    }
+    #sa-typing span {
+      display: inline-block;
+      width: 7px; height: 7px;
+      background: #2a7d4f;
+      border-radius: 50%;
+      margin: 0 2px;
+      animation: sa-bounce 1.2s infinite;
+    }
+    #sa-typing span:nth-child(2) { animation-delay: 0.2s; }
+    #sa-typing span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes sa-bounce {
+      0%,60%,100%{transform:translateY(0)}
+      30%{transform:translateY(-5px)}
+    }
+
+    /* ── Input area ── */
+    #sa-input-area {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 18px;
+      border-top: 1px solid #e8f0eb;
+      flex-shrink: 0;
+      background: white;
+    }
+    #sa-input {
+      flex: 1;
+      border: 1.5px solid #c8e0d2;
+      border-radius: 26px;
+      padding: 11px 18px;
+      font-size: 13.5px;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      background: #f8fbf9;
+      color: #1a1a1a;
+      font-family: inherit;
+    }
+    #sa-input:focus {
+      border-color: #2a7d4f;
+      background: #fff;
+      box-shadow: 0 0 0 3px rgba(42,125,79,0.08);
+    }
+    #sa-input::placeholder { color: #b0b0b0; }
+    #sa-mic {
+      width: 42px; height: 42px; border-radius: 50%;
+      background: transparent; border: 1.5px solid #2a7d4f;
+      cursor: pointer; display: flex; align-items: center;
+      justify-content: center; flex-shrink: 0;
+      transition: background 0.2s, transform 0.1s;
+    }
+    #sa-mic:hover { background: rgba(42,125,79,0.08); transform: scale(1.05); }
+    #sa-mic svg { width: 17px; height: 17px; fill: #2a7d4f; }
+    #sa-mic.sa-recording {
+      background: #fff0f0; border-color: #e53e3e;
+      animation: sa-mic-pulse 1s infinite;
+    }
+    #sa-mic.sa-recording svg { fill: #e53e3e; }
+    #sa-mic:disabled { opacity: 0.4; cursor: default; transform: none; }
+    @keyframes sa-mic-pulse {
+      0%,100%{box-shadow:0 0 0 0 rgba(229,62,62,0.3)}
+      50%{box-shadow:0 0 0 6px rgba(229,62,62,0)}
+    }
+    #sa-send {
+      width: 42px; height: 42px; border-radius: 50%;
+      background: linear-gradient(135deg, #2a7d4f, #1e5c39);
+      border: none; cursor: pointer; display: flex; align-items: center;
+      justify-content: center; flex-shrink: 0;
+      transition: opacity 0.2s, transform 0.1s;
+      box-shadow: 0 2px 8px rgba(42,125,79,0.35);
+    }
+    #sa-send:hover { opacity: 0.9; transform: scale(1.05); }
+    #sa-send:disabled { opacity: 0.45; cursor: default; transform: none; }
+    #sa-send svg { width: 18px; height: 18px; fill: white; }
+
+    /* ── Footer ── */
+    #sa-footer {
+      text-align: center;
+      padding: 12px;
+      color: rgba(255,255,255,0.35);
+      font-size: 11px;
+      flex-shrink: 0;
+      letter-spacing: 0.3px;
+    }
+    #sa-footer a { color: rgba(255,255,255,0.35); text-decoration: none; transition: color 0.2s; }
+    #sa-footer a:hover { color: rgba(255,255,255,0.65); }
+
+    /* ── Mobile ── */
+    @media (max-width: 520px) {
+      #sa-header { padding: 14px 18px; }
+      #sa-logo img { height: 28px; }
+      #sa-main { padding: 0; align-items: stretch; }
+      #sa-chat { border-radius: 0; height: calc(100vh - 65px); min-height: unset; }
+      .sa-msg { max-width: 85%; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top bar -->
+  <div id="sa-header">
+    <div id="sa-logo">
+      <img src="https://kuphuka.com/cdn/shop/files/Kuphuka_Logo_Blanco.png?v=1663924403&width=400" alt="Kuphuka" />
+    </div>
+    <div id="sa-status">
+      <div id="sa-status-dot"></div>
+      Especialista disponible ahora
+    </div>
+  </div>
+
+  <!-- Chat area -->
+  <div id="sa-main">
+    <div id="sa-chat">
+
+      <!-- Card header -->
+      <div id="sa-chat-header">
+        <div id="sa-avatar">
+          <img src="https://cdn.shopify.com/s/files/1/0604/8763/0948/files/ChatGPT_Image_Oct_11_2025_02_16_32_PM.png?v=1760214765" alt="Kuphuka Greens" />
+        </div>
+        <div id="sa-chat-header-text">
+          <div id="sa-chat-title">Tu especialista de producto</div>
+          <div id="sa-chat-sub">Kuphuka Greens · Respuestas inmediatas, 24 / 7</div>
+        </div>
+      </div>
+
+      <!-- Intro -->
+      <div id="sa-intro">
+        "Pregúntame sobre ingredientes, beneficios, envíos, suscripciones o lo que necesites."
+      </div>
+
+      <!-- Messages -->
+      <div id="sa-messages">
+        <div id="sa-typing"><span></span><span></span><span></span></div>
+      </div>
+
+      <!-- Input -->
+      <div id="sa-input-area">
+        <input id="sa-input" type="text" placeholder="Escribe o habla tu pregunta..." autocomplete="off" />
+        <button id="sa-mic" aria-label="Hablar">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm-1.5 4a1.5 1.5 0 0 0-1.5 1.5v5a1.5 1.5 0 0 0 3 0V6.5A1.5 1.5 0 0 0 10.5 5zM3 11a1 1 0 0 1 2 0 7 7 0 0 0 14 0 1 1 0 1 1 2 0 9 9 0 0 1-8 8.94V22h3a1 1 0 1 1 0 2H8a1 1 0 1 1 0-2h3v-2.06A9 9 0 0 1 3 11z"/></svg>
+        </button>
+        <button id="sa-send" aria-label="Enviar">
+          <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div id="sa-footer">
+    <a href="https://kuphuka.com" target="_blank">kuphuka.com</a>
+    &nbsp;·&nbsp;
+    <a href="mailto:info@kuphuka.com">info@kuphuka.com</a>
+  </div>
+
+<script>
+(function () {
+  var API_URL = 'https://kuphuka-chatbot.vercel.app/api/chat';
+  var TTS_URL  = 'https://kuphuka-chatbot.vercel.app/api/tts';
+  var GREETING = '¡Hola! Soy el asistente de Kuphuka 👋 Estoy aquí para resolver cualquier duda que tengas sobre el producto, ingredientes, envíos o suscripciones. ¿En qué puedo ayudarte?';
+  var GREETING_TTS = 'Hola, soy el asistente de Kufuka. Estoy aquí para resolver cualquier duda que tengas. ¿En qué puedo ayudarte?';
+
+  var messagesEl = document.getElementById('sa-messages');
+  var typingEl   = document.getElementById('sa-typing');
+  var inputEl    = document.getElementById('sa-input');
+  var sendBtn    = document.getElementById('sa-send');
+  var micBtn     = document.getElementById('sa-mic');
+
+  var history   = [];
+  var sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+  var greeted   = false;
+
+  // ── Audio ──
+  var audioCtx = null;
+
+  function unlockAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  }
+
+  async function playAudio(base64Audio) {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
+      var binary = atob(base64Audio);
+      var bytes  = new Uint8Array(binary.length);
+      for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      var buf = await audioCtx.decodeAudioData(bytes.buffer.slice(0));
+      var src = audioCtx.createBufferSource();
+      src.buffer = buf;
+      src.connect(audioCtx.destination);
+      src.start(0);
+    } catch(e) { console.log('Audio error:', e); }
+  }
+
+  // ── Helpers ──
+  function linkify(text) {
+    return text
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/(https?:\/\/[^\s]+)/g,'<a href="$1" target="_blank" rel="noopener">$1</a>')
+      .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
+      .replace(/\n/g,'<br>');
+  }
+
+  function addMessage(text, role) {
+    var div = document.createElement('div');
+    div.className = 'sa-msg ' + (role === 'user' ? 'sa-msg-user' : 'sa-msg-bot');
+    div.innerHTML = linkify(text);
+    messagesEl.insertBefore(div, typingEl);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function setLoading(on) {
+    typingEl.style.display = on ? 'flex' : 'none';
+    sendBtn.disabled = on;
+    inputEl.disabled = on;
+    micBtn.disabled  = on;
+    if (on) messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function fixBrandName(text) {
+    return text
+      .replace(/(ku|cu|ko|co)[\s\-]?(f|ph)(u|o|a)[\s\-]?(k|c)(a|o)/gi, 'Kuphuka')
+      .replace(/\b[ck][\s\-]?f[\s\-]?[ck][ao]?\b/gi, 'Kuphuka')
+      .replace(/\bk[\s]u[\s]f[\s]u[\s]k[\s]?a?\b/gi, 'Kuphuka');
+  }
+
+  // ── Greeting — fires on first user interaction (needed for iOS audio unlock) ──
+  function showGreeting() {
+    if (greeted) return;
+    greeted = true;
+    var greetingAudioPromise = fetch(TTS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: GREETING_TTS })
+    }).then(function(r) { return r.ok ? r.json() : null; }).catch(function() { return null; });
+
+    addMessage(GREETING, 'bot');
+    inputEl.focus();
+    greetingAudioPromise.then(function(data) {
+      if (data && data.audio) playAudio(data.audio);
+    });
+  }
+
+  // Show greeting on first tap/click (unlocks iOS audio)
+  document.addEventListener('click', function onFirst() {
+    unlockAudio();
+    showGreeting();
+  }, { once: true });
+
+  // Also auto-show on desktop after short delay (no click needed)
+  setTimeout(function() { if (!greeted) showGreeting(); }, 1200);
+
+  // ── Speech recognition ──
+  var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var recognition = null;
+  var isRecording = false;
+
+  if (SpeechRecognition) {
+    recognition = new SpeechRecognition();
+    recognition.lang = 'es-ES';
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.onresult = function(event) {
+      var t = '';
+      for (var i = event.resultIndex; i < event.results.length; i++) t += event.results[i][0].transcript;
+      inputEl.value = fixBrandName(t);
+    };
+    recognition.onend = function() {
+      isRecording = false;
+      micBtn.classList.remove('sa-recording');
+      if (inputEl.value.trim()) sendMessage();
+    };
+    recognition.onerror = function(e) {
+      isRecording = false;
+      micBtn.classList.remove('sa-recording');
+    };
+  } else {
+    micBtn.style.display = 'none';
+  }
+
+  micBtn.addEventListener('click', function() {
+    if (!recognition) return;
+    unlockAudio();
+    if (isRecording) {
+      recognition.stop();
+    } else {
+      inputEl.value = '';
+      inputEl.placeholder = 'Escuchando...';
+      isRecording = true;
+      micBtn.classList.add('sa-recording');
+      recognition.start();
+    }
+  });
+
+  // ── Send ──
+  async function sendMessage() {
+    inputEl.placeholder = 'Escribe o habla tu pregunta...';
+    var text = inputEl.value.trim();
+    if (!text) return;
+    inputEl.value = '';
+    addMessage(text, 'user');
+    history.push({ role: 'user', content: text });
+    setLoading(true);
+    try {
+      var res  = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: history, sessionId: sessionId })
+      });
+      if (!res.ok) throw new Error('Network error');
+      var data  = await res.json();
+      var reply = data.message || 'Lo siento, ha habido un error. Por favor escríbenos a info@kuphuka.com.';
+      history.push({ role: 'assistant', content: reply });
+      addMessage(reply, 'bot');
+      if (data.audio) playAudio(data.audio);
+    } catch(e) {
+      addMessage('Lo siento, no he podido conectar. Por favor inténtalo de nuevo o escríbenos a info@kuphuka.com.', 'bot');
+    }
+    setLoading(false);
+    inputEl.focus();
+  }
+
+  sendBtn.addEventListener('click', function() { unlockAudio(); sendMessage(); });
+  inputEl.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); unlockAudio(); sendMessage(); }
+  });
+
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', function() {
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    });
+  }
+})();
+</script>
+
+</body>
+</html>
