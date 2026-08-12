@@ -239,7 +239,18 @@
 
   var history = [];
   var greeted = false;
-  var sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+  // Survives a page reload in the same tab, so an operator's Telegram thread
+  // keeps reaching the customer instead of being orphaned
+  var sessionId;
+  try {
+    sessionId = sessionStorage.getItem('kup_session');
+    if (!sessionId) {
+      sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+      sessionStorage.setItem('kup_session', sessionId);
+    }
+  } catch (e) {
+    sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+  }
   var callMode = false;
   var isSpeaking = false;
 
@@ -345,6 +356,9 @@
 
         (d.messages || []).forEach(function (m) {
           addMessage(m.content, m.role === 'human' ? 'human' : 'notice');
+          // Operator replies join the history as assistant turns, so if the
+          // bot is handed back it knows what the team already told the customer
+          if (m.role === 'human') history.push({ role: 'assistant', content: m.content });
         });
       }
     } catch (e) { /* transient — try again next tick */ }
