@@ -341,12 +341,33 @@
   var humanActive = false;
   var pollTimer = null;
 
+  // Polling costs one Redis command per tick, so it only runs while the panel
+  // is open and backs off when nothing is happening.
+  var POLL_FAST = 3000;    // operator is in the conversation
+  var POLL_IDLE = 8000;    // bot handling it normally
+  var IDLE_STOP_MS = 600000; // stop after 10 min with no customer activity
+  var lastActivity = Date.now();
+  var pollDisabled = false;
+
+  function markActivity() {
+    lastActivity = Date.now();
+    startPolling();
+  }
+
   async function pollLoop() {
+    pollTimer = null;
+    var panelOpen = widget.classList.contains('kup-open');
+
+    // Don't spend commands when the panel is closed, the store is off,
+    // or the customer walked away
+    if (pollDisabled) return;
+    if (!panelOpen || Date.now() - lastActivity > IDLE_STOP_MS) return;
+
     try {
       var r = await fetch(POLL_URL + '?sessionId=' + encodeURIComponent(sessionId) + '&since=' + pollCursor);
       if (r.ok) {
         var d = await r.json();
-        if (d.enabled === false) return; // store not configured — stop polling
+        if (d.enabled === false) { pollDisabled = true; return; } // store not configured
         pollCursor = d.cursor || pollCursor;
 
         if (d.humanActive && !humanActive) {
@@ -359,15 +380,17 @@
           // Operator replies join the history as assistant turns, so if the
           // bot is handed back it knows what the team already told the customer
           if (m.role === 'human') history.push({ role: 'assistant', content: m.content });
+          lastActivity = Date.now(); // an active operator keeps the session alive
         });
       }
     } catch (e) { /* transient — try again next tick */ }
-    pollTimer = setTimeout(pollLoop, 3000);
+
+    pollTimer = setTimeout(pollLoop, humanActive ? POLL_FAST : POLL_IDLE);
   }
 
   function startPolling() {
-    if (pollTimer) return;
-    pollTimer = setTimeout(pollLoop, 3000);
+    if (pollTimer || pollDisabled) return;
+    pollTimer = setTimeout(pollLoop, humanActive ? POLL_FAST : POLL_IDLE);
   }
 
   // Update header subtitle to reflect call state
@@ -465,6 +488,7 @@
     inputEl.value = '';
     addMessage(text, 'user');
     history.push({ role: 'user', content: text });
+    markActivity();
     setLoading(true);
     if (callMode) setCallStatus('thinking');
 
@@ -568,9 +592,9 @@
   btn.addEventListener('click', function () {
     unlockAudio();
     widget.classList.toggle('kup-open');
+    if (widget.classList.contains('kup-open')) markActivity(); // resume polling on every open
     if (widget.classList.contains('kup-open') && !greeted) {
       greeted = true;
-      startPolling();
       // Fetch greeting audio in parallel with the typing delay
       var greetingAudioPromise = fetch(TTS_URL, {
         method: 'POST',
