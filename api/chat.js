@@ -281,6 +281,7 @@ module.exports = async function handler(req, res) {
 
   const systemContent = SYSTEM_PROMPT + customerContext +
     '\n\nIMPORTANTE: Responde siempre en máximo 2 frases cortas y directas. Sin listas, sin puntos, sin explicaciones largas. Ve al punto.' +
+    '\n\nRECORDATORIO FINAL DE IDIOMA: antes de responder, mira el idioma del último mensaje del cliente y responde en ESE idioma. / FINAL LANGUAGE REMINDER: check the language of the customer\'s last message and reply in THAT language. If they wrote in English, reply in English.' +
     (customerContext ? '\n\nREGLA ABSOLUTA: Para cualquier dato del pedido (precio, transportista, tipo de pedido, estado) usa EXCLUSIVAMENTE los valores exactos del bloque DATOS DEL CLIENTE de arriba. Si el dato no está ahí, di que no tienes esa información. Está prohibido inventar o suponer valores.' : '');
 
   const groqPayload = {
