@@ -1,6 +1,7 @@
 const { SYSTEM_PROMPT } = require('../knowledge');
 const { lookupOrders, buildCustomerContext, extractCredentials } = require('../lib/shopify');
 const { detectSubscriptionFromOrders } = require('../lib/appstle');
+const { streamCompletion } = require('../lib/llm');
 const { kvEnabled, getSession, saveSession } = require('../lib/store');
 const { notifyNewSession, notifyExchange, notifyAwaitingHuman } = require('../lib/telegram');
 
@@ -217,7 +218,6 @@ module.exports = async function handler(req, res) {
     }
   }
 
-  const groqApiKey = process.env.GROQ_API_KEY;
 
   // Auto-inject customer order + subscription data if email found in conversation
   let customerContext = '';
@@ -246,30 +246,21 @@ module.exports = async function handler(req, res) {
     '\n\nRECORDATORIO FINAL DE IDIOMA: antes de responder, mira el idioma del último mensaje del cliente y responde en ESE idioma, sea cual sea (inglés, francés, alemán, italiano, portugués, neerlandés, polaco o cualquier otro). Traduce cualquier respuesta modelo del prompt a ese idioma. / FINAL LANGUAGE REMINDER: reply in the customer\'s own language, whatever it is. Translate any canned answer from the prompt into that language. Never default to Spanish.' +
     (customerContext ? '\n\nREGLA ABSOLUTA: Para cualquier dato del pedido (precio, transportista, tipo de pedido, estado) usa EXCLUSIVAMENTE los valores exactos del bloque DATOS DEL CLIENTE de arriba. Si el dato no está ahí, di que no tienes esa información. Está prohibido inventar o suponer valores.' : '');
 
-  const groqPayload = {
-    messages: [{ role: 'system', content: systemContent }, ...messages.slice(-10)],
-    max_tokens: 200,
-    temperature: 0.7,
-  };
-
-  // Try 70b for quality; fall back to 8b if rate-limited or unavailable
-  async function callGroq(model) {
-    return fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${groqApiKey}` },
-      body: JSON.stringify({ ...groqPayload, model, stream: true }),
-    });
-  }
+  const llmMessages = [{ role: 'system', content: systemContent }, ...messages.slice(-10)];
 
   try {
-    let groqRes = await callGroq('llama-3.3-70b-versatile');
-    if (!groqRes.ok && (groqRes.status === 429 || groqRes.status >= 500)) {
-      console.warn(`Groq 70b failed (${groqRes.status}), falling back to 8b`);
-      groqRes = await callGroq('llama-3.1-8b-instant');
-    }
-    if (!groqRes.ok) {
-      const errorText = await groqRes.text();
-      console.error('Groq API error:', groqRes.status, errorText);
+    // Provider selection, ordering and fallback all live in lib/llm.js
+    const tokenStream = streamCompletion(llmMessages, { maxTokens: 200 });
+
+    // Pull the first token before committing to a streaming response, so a
+    // total provider failure can still return a clean JSON 502
+    let firstToken;
+    try {
+      const first = await tokenStream.next();
+      if (first.done) throw new Error('Empty completion');
+      firstToken = first.value;
+    } catch (err) {
+      console.error('LLM error:', err.message);
       return res.status(502).json({ error: 'Model unavailable' });
     }
 
@@ -307,52 +298,31 @@ module.exports = async function handler(req, res) {
       } catch (e) { console.error('TTS chunk exception:', e.message); return null; }
     }
 
-    // Read Groq SSE stream, buffer tokens, flush complete sentences to TTS
-    const reader = groqRes.body.getReader();
-    const decoder = new TextDecoder();
-    let pending = '';   // raw bytes waiting to be parsed as SSE events
+    // Consume provider-agnostic tokens, buffer them, flush complete
+    // sentences to TTS as soon as each one is ready
     let textBuf = '';   // tokens waiting for a sentence boundary
     let fullText = '';  // entire response accumulated for logging
     const MIN_SPLIT = 25; // minimum chars before splitting on punctuation
 
-    try {
-      outer: while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+    async function handleToken(token) {
+      if (!token) return;
+      textBuf += token;
+      fullText += token;
+      sse({ type: 'token', content: token }); // text appears in real time
 
-        pending += decoder.decode(value, { stream: true });
-
-        let sep;
-        while ((sep = pending.indexOf('\n\n')) !== -1) {
-          const line = pending.slice(0, sep).trim();
-          pending = pending.slice(sep + 2);
-
-          if (!line.startsWith('data:')) continue;
-          const raw = line.replace(/^data:\s*/, '');
-          if (raw === '[DONE]') break outer;
-
-          let token;
-          try { token = JSON.parse(raw).choices?.[0]?.delta?.content || ''; }
-          catch { continue; }
-          if (!token) continue;
-
-          textBuf += token;
-          fullText += token;
-          sse({ type: 'token', content: token }); // text appears in real time
-
-          // Flush a complete sentence to TTS as soon as one is ready
-          let m;
-          while (textBuf.length >= MIN_SPLIT &&
-                 (m = textBuf.match(/^(.{15,}?[.!?])(?:\s+|$)/s))) {
-            const sentence = m[1].trim();
-            textBuf = textBuf.slice(m[0].length);
-            const audio = await ttsChunk(sentence);
-            sse({ type: 'audio', data: audio });
-          }
-        }
+      let m;
+      while (textBuf.length >= MIN_SPLIT &&
+             (m = textBuf.match(/^(.{15,}?[.!?])(?:\s+|$)/s))) {
+        const sentence = m[1].trim();
+        textBuf = textBuf.slice(m[0].length);
+        const audio = await ttsChunk(sentence);
+        sse({ type: 'audio', data: audio });
       }
-    } finally {
-      reader.releaseLock();
+    }
+
+    await handleToken(firstToken); // already pulled to validate the provider
+    for await (const token of tokenStream) {
+      await handleToken(token);
     }
 
     // Flush any remaining text after stream ends
