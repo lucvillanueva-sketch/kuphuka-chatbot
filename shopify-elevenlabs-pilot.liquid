@@ -87,6 +87,16 @@
         if (watching || !el.shadowRoot) return;
         watching = true;
         new MutationObserver(sync).observe(el.shadowRoot, { childList: true, subtree: true, attributes: true });
+        // Closing the window during a voice call ends the call, so the page is
+        // never left with the call bar on top of it.
+        el.shadowRoot.addEventListener('click', function (e) {
+          var b = e.target.closest && e.target.closest('button');
+          if (!b || b.getAttribute('aria-label') !== 'Contraer') return;
+          setTimeout(function () {
+            var end = widgetButton('Finalizar');
+            if (end) end.click();
+          }, 150);
+        }, true);
       }
 
       document.getElementById('kup-ll-btn').addEventListener('click', function () {
