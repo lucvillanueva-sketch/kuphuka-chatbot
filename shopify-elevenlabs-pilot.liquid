@@ -8,20 +8,104 @@
     the single-tub prices.
   - Hides the old #kup-widget on this page so there is one chat bubble, not two.
     Everywhere else the old widget (and the Telegram takeover) is unchanged.
+  - One launcher that looks like the old bubble. Clicking it offers
+    "Escribir" or "Hablar"; the ElevenLabs widget stays hidden until the
+    customer picks one, and hides again when the chat is closed or the call ends.
+    It is driven through the widget's button labels ("Mensaje", "Iniciar llamada",
+    "Contraer", "Finalizar"), which are set in the agent's widget texts: if those
+    texts change, change them here too.
   - Page context is read when the page renders. Switching flavour or adding to
     cart without a reload is not reflected until the next page load.
   - No customer data is sent: only product, selected flavour and cart count.
 {%- endcomment -%}
 {%- if template.name == 'product' and product.handle == 'kuphuka-greens' -%}
-  <style>#kup-widget { display: none !important; }</style>
+  <style>
+    #kup-widget { display: none !important; }
+    #kup-llanos { visibility: hidden; pointer-events: none; }
+    #kup-llanos.kup-ll-active { visibility: visible; pointer-events: auto; }
+    #kup-ll { position: fixed; bottom: 34px; right: 24px; z-index: 9999; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif; }
+    #kup-ll.kup-ll-hidden { display: none; }
+    #kup-ll-btn { width: 56px; height: 56px; border-radius: 50%; background: transparent; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: transform 0.2s; margin-left: auto; padding: 0; }
+    #kup-ll-btn:hover { transform: scale(1.07); }
+    #kup-ll-btn svg { width: 52px; height: 52px; }
+    #kup-ll-btn .kup-ll-close { display: none; }
+    #kup-ll.kup-ll-open #kup-ll-btn .kup-ll-chat { display: none; }
+    #kup-ll.kup-ll-open #kup-ll-btn .kup-ll-close { display: block; }
+    #kup-ll-menu { display: none; width: 240px; background: #fff; border-radius: 16px; box-shadow: 0 12px 40px rgba(0,0,0,0.16), 0 0 0 1px rgba(0,0,0,0.04); padding: 14px; margin-bottom: 10px; }
+    #kup-ll.kup-ll-open #kup-ll-menu { display: block; }
+    #kup-ll-menu p { margin: 0 0 10px; font-size: 14px; font-weight: 600; color: #1a1a1a; }
+    .kup-ll-opt { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; margin-top: 6px; border: 1px solid #e3ebe6; border-radius: 12px; background: #fff; cursor: pointer; text-align: left; font: inherit; transition: background 0.2s, border-color 0.2s; }
+    .kup-ll-opt:hover { background: #f2f8f4; border-color: #2a7d4f; }
+    .kup-ll-opt svg { width: 22px; height: 22px; flex-shrink: 0; }
+    .kup-ll-opt strong { display: block; font-size: 14px; color: #1a1a1a; }
+    .kup-ll-opt span { display: block; font-size: 12px; color: #6b6b6b; }
+    @media (max-width: 420px) { #kup-ll { bottom: 80px; right: 16px; } }
+  </style>
+
+  <div id="kup-ll">
+    <div id="kup-ll-menu">
+      <p>¿Cómo prefieres hablar?</p>
+      <button class="kup-ll-opt" data-mode="Mensaje">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#2a7d4f" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>
+        <div><strong>Escribir</strong><span>Chatea por mensajes</span></div>
+      </button>
+      <button class="kup-ll-opt" data-mode="Iniciar llamada">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#2a7d4f" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+        <div><strong>Hablar</strong><span>Conversación por voz</span></div>
+      </button>
+    </div>
+    <button id="kup-ll-btn" aria-label="Abrir asistente Kuphuka">
+      <svg class="kup-ll-chat" viewBox="0 0 24 24" fill="none" stroke="#2a7d4f" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C6.48 2 2 6.48 2 12c0 1.85.5 3.58 1.37 5.07L2 22l4.93-1.37C8.42 21.5 10.15 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2z"/><text x="12" y="17.5" text-anchor="middle" font-size="14" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-weight="300" fill="#2a7d4f" stroke="none">?</text></svg>
+      <svg class="kup-ll-close" viewBox="0 0 24 24" fill="none" stroke="#2a7d4f" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+
   <elevenlabs-convai id="kup-llanos" agent-id="agent_5301m5vpf2kce9h9c1myennz0cs1"></elevenlabs-convai>
   <script>
-    document.getElementById('kup-llanos').setAttribute('dynamic-variables', JSON.stringify({
-      page_type: 'product',
-      product_name: {{ product.title | json }},
-      flavour: {{ product.selected_or_first_available_variant.title | downcase | json }},
-      cart_count: {{ cart.item_count | json }}
-    }));
+    (function () {
+      var el = document.getElementById('kup-llanos');
+      var launcher = document.getElementById('kup-ll');
+      el.setAttribute('dynamic-variables', JSON.stringify({
+        page_type: 'product',
+        product_name: {{ product.title | json }},
+        flavour: {{ product.selected_or_first_available_variant.title | downcase | json }},
+        cart_count: {{ cart.item_count | json }}
+      }));
+
+      function widgetButton(label) {
+        return el.shadowRoot && el.shadowRoot.querySelector('button[aria-label="' + label + '"]');
+      }
+      // The ElevenLabs widget is shown only while a chat is open or a call is live.
+      function sync() {
+        var active = !!(widgetButton('Contraer') || widgetButton('Finalizar'));
+        el.classList.toggle('kup-ll-active', active);
+        launcher.classList.toggle('kup-ll-hidden', active);
+        if (active) launcher.classList.remove('kup-ll-open');
+      }
+      var watching = false;
+      function watch() {
+        if (watching || !el.shadowRoot) return;
+        watching = true;
+        new MutationObserver(sync).observe(el.shadowRoot, { childList: true, subtree: true, attributes: true });
+      }
+
+      document.getElementById('kup-ll-btn').addEventListener('click', function () {
+        launcher.classList.toggle('kup-ll-open');
+      });
+      launcher.querySelectorAll('.kup-ll-opt').forEach(function (opt) {
+        opt.addEventListener('click', function () {
+          var tries = 0;
+          // The widget script loads async: if it isn't ready yet, retry for ~3 s.
+          (function open() {
+            var target = widgetButton(opt.getAttribute('data-mode'));
+            if (!target) { if (++tries < 15) setTimeout(open, 200); return; }
+            watch();
+            target.click();
+            sync();
+          })();
+        });
+      });
+    })();
   </script>
   <script src="https://unpkg.com/@elevenlabs/convai-widget-embed" async type="text/javascript"></script>
 {%- endif -%}
