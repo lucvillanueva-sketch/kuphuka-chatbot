@@ -11,9 +11,14 @@
     Bundle pricing and would quote the single-tub prices.
   - Hides the old #kup-widget on this page so there is one chat bubble, not two.
     Everywhere else the old widget (and the Telegram takeover) is unchanged.
-  - One launcher that looks like the old bubble. Clicking it offers
+  - One labelled launcher ("Tu asesora Kuphuka"). Clicking it offers
     "Escribir" or "Hablar"; the ElevenLabs widget stays hidden until the
     customer picks one, and hides again when the chat is closed or the call ends.
+  - Once per visit a short prompt appears next to it: after a click on the plan
+    box, 8 s after load with a full basket, or after 30 s. Never over another
+    popup. Its opening line is passed to Llanos (agent allows first_message override).
+  - Orders are marked with the cart attribute "Asesora Llanos" ("conversación"
+    or "añadió a la cesta"), visible in the order's Additional details.
   - When the customer picks an option, the page sends Llanos the current
     flavour, the basket contents and the pages seen this visit.
   - Llanos can add the product to the basket (add_to_cart) and open checkout
@@ -42,12 +47,20 @@
     #kup-llanos.kup-ll-active { visibility: visible; pointer-events: auto; }
     #kup-ll { position: fixed; bottom: 34px; right: 24px; z-index: 9999; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif; }
     #kup-ll.kup-ll-hidden { display: none; }
-    #kup-ll-btn { width: 56px; height: 56px; border-radius: 50%; background: transparent; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: transform 0.2s; margin-left: auto; padding: 0; }
-    #kup-ll-btn:hover { transform: scale(1.07); }
-    #kup-ll-btn svg { width: 52px; height: 52px; }
-    #kup-ll-btn .kup-ll-close { display: none; }
-    #kup-ll.kup-ll-open #kup-ll-btn .kup-ll-chat { display: none; }
-    #kup-ll.kup-ll-open #kup-ll-btn .kup-ll-close { display: block; }
+    #kup-ll-btn { display: flex; align-items: center; gap: 10px; width: max-content; white-space: nowrap; margin-left: auto; padding: 6px 16px 6px 6px; background: #fff; border: 1.5px solid #2a7d4f; border-radius: 999px; box-shadow: 0 6px 20px rgba(0,0,0,0.12); cursor: pointer; font: inherit; transition: transform 0.2s, box-shadow 0.2s; }
+    #kup-ll-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(0,0,0,0.16); }
+    .kup-ll-ico { width: 36px; height: 36px; border-radius: 50%; background: #2a7d4f; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .kup-ll-ico svg { width: 20px; height: 20px; }
+    .kup-ll-ico .kup-ll-close { display: none; }
+    #kup-ll.kup-ll-open .kup-ll-ico .kup-ll-chat { display: none; }
+    #kup-ll.kup-ll-open .kup-ll-ico .kup-ll-close { display: block; }
+    .kup-ll-txt { text-align: left; line-height: 1.2; }
+    .kup-ll-txt strong { display: block; font-size: 14px; font-weight: 600; color: #1a1a1a; }
+    .kup-ll-txt small { display: block; font-size: 12px; color: #2a7d4f; }
+    #kup-ll-tease { display: none; position: relative; max-width: 250px; margin: 0 0 10px auto; padding: 12px 34px 12px 14px; background: #fff; border-radius: 14px; box-shadow: 0 10px 32px rgba(0,0,0,0.16), 0 0 0 1px rgba(0,0,0,0.04); font-size: 14px; color: #1a1a1a; cursor: pointer; }
+    #kup-ll.kup-ll-teasing #kup-ll-tease { display: block; }
+    #kup-ll.kup-ll-open #kup-ll-tease { display: none; }
+    #kup-ll-tease-x { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border: none; background: transparent; color: #8a8a8a; font-size: 18px; line-height: 1; cursor: pointer; }
     #kup-ll-menu { display: none; width: 240px; background: #fff; border-radius: 16px; box-shadow: 0 12px 40px rgba(0,0,0,0.16), 0 0 0 1px rgba(0,0,0,0.04); padding: 14px; margin-bottom: 10px; }
     #kup-ll.kup-ll-open #kup-ll-menu { display: block; }
     #kup-ll-menu p { margin: 0 0 10px; font-size: 14px; font-weight: 600; color: #1a1a1a; }
@@ -56,7 +69,11 @@
     .kup-ll-opt svg { width: 22px; height: 22px; flex-shrink: 0; }
     .kup-ll-opt strong { display: block; font-size: 14px; color: #1a1a1a; }
     .kup-ll-opt span { display: block; font-size: 12px; color: #6b6b6b; }
-    @media (max-width: 420px) { #kup-ll { bottom: 80px; right: 16px; } }
+    @media (max-width: 420px) {
+      #kup-ll { bottom: 80px; right: 16px; }
+      #kup-ll-btn { padding-right: 12px; }
+      .kup-ll-txt strong { font-size: 13px; }
+    }
   </style>
 
   <div id="kup-ll">
@@ -71,9 +88,13 @@
         <div><strong>Hablar</strong><span>Conversación por voz</span></div>
       </button>
     </div>
-    <button id="kup-ll-btn" aria-label="Abrir asistente Kuphuka">
-      <svg class="kup-ll-chat" viewBox="0 0 24 24" fill="none" stroke="#2a7d4f" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C6.48 2 2 6.48 2 12c0 1.85.5 3.58 1.37 5.07L2 22l4.93-1.37C8.42 21.5 10.15 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2z"/><text x="12" y="17.5" text-anchor="middle" font-size="14" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-weight="300" fill="#2a7d4f" stroke="none">?</text></svg>
-      <svg class="kup-ll-close" viewBox="0 0 24 24" fill="none" stroke="#2a7d4f" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    <div id="kup-ll-tease" role="button" tabindex="0"><span id="kup-ll-tease-txt"></span><button id="kup-ll-tease-x" aria-label="Cerrar">×</button></div>
+    <button id="kup-ll-btn" aria-label="Abrir tu asesora Kuphuka">
+      <span class="kup-ll-ico">
+        <svg class="kup-ll-chat" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>
+        <svg class="kup-ll-close" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </span>
+      <span class="kup-ll-txt"><strong>Tu asesora Kuphuka</strong><small>Chat o voz</small></span>
     </button>
   </div>
 
@@ -123,6 +144,29 @@
       function getCart() {
         return fetch('/cart.js', { headers: { Accept: 'application/json' } }).then(function (r) { return r.json(); });
       }
+      // Opening question, matched to the one-time prompt the customer clicked (if any).
+      var OPENINGS = {
+        plan: '¿Te ayudo a elegir entre la suscripción y la compra única?',
+        cart: '¿Te resuelvo alguna duda antes de pagar?'
+      };
+      var openingKey = null;
+
+      // Marks the order in Shopify (cart attribute, shown in the order's
+      // "Additional details") so orders helped by Llanos can be counted.
+      var TAG = 'Asesora Llanos';
+      function tagOrder(value, cart) {
+        // Same label in Microsoft Clarity, so these visits can be filtered there.
+        try { if (window.clarity) { window.clarity('set', 'asesora_llanos', value); window.clarity('event', 'llanos_' + (value === 'conversación' ? 'conversacion' : 'cesta')); } } catch (e) {}
+        if (cart && cart.attributes && cart.attributes[TAG] === 'añadió a la cesta') return;
+        var attributes = {};
+        attributes[TAG] = value;
+        fetch('/cart/update.js', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ attributes: attributes })
+        }).catch(function () {});
+      }
+
       // Context Llanos gets at the start of each conversation.
       function setContext() {
         return getCart().catch(function () { return null; }).then(function (cart) {
@@ -134,6 +178,9 @@
             cart_summary: cart ? describeCart(cart) : 'desconocida',
             pages_viewed: pagesViewed()
           }));
+          if (OPENINGS[openingKey]) el.setAttribute('override-first-message', '[warmly] ¡Hola! Soy Llanos, de Kuphuka. ' + OPENINGS[openingKey]);
+          else el.removeAttribute('override-first-message');
+          return cart;
         });
       }
       setContext();
@@ -169,6 +216,7 @@
             return r.json().then(function (data) {
               if (!r.ok) throw new Error(data.description || data.message || 'error');
               refreshThemeCart(data.sections);
+              tagOrder('añadió a la cesta');
               return getCart();
             });
           }).then(function (cart) {
@@ -197,6 +245,16 @@
         launcher.classList.toggle('kup-ll-hidden', active);
         if (active) launcher.classList.remove('kup-ll-open');
       }
+      // The "Mmm..." pause filler is meant for voice; remove it from written chat.
+      var mode = null;
+      function stripFiller() {
+        if (mode !== 'Mensaje' || !el.shadowRoot) return;
+        var walker = document.createTreeWalker(el.shadowRoot, NodeFilter.SHOW_TEXT);
+        var node;
+        while ((node = walker.nextNode())) {
+          if (/^\s*Mmm\.\.\.\s*/.test(node.nodeValue)) node.nodeValue = node.nodeValue.replace(/^\s*Mmm\.\.\.\s*/, '');
+        }
+      }
       var watching = false;
       function watch() {
         if (watching || !el.shadowRoot) return;
@@ -205,7 +263,8 @@
         var style = document.createElement('style');
         style.textContent = 'textarea, input { font-size: 16px !important; }';
         el.shadowRoot.appendChild(style);
-        new MutationObserver(sync).observe(el.shadowRoot, { childList: true, subtree: true, attributes: true });
+        new MutationObserver(function () { sync(); stripFiller(); })
+          .observe(el.shadowRoot, { childList: true, subtree: true, attributes: true });
         // Closing the window during a voice call ends the call, so the page is
         // never left with the call bar on top of it.
         el.shadowRoot.addEventListener('click', function (e) {
@@ -220,20 +279,71 @@
 
       document.getElementById('kup-ll-btn').addEventListener('click', function () {
         launcher.classList.toggle('kup-ll-open');
+        stopTeasing();
       });
       launcher.querySelectorAll('.kup-ll-opt').forEach(function (opt) {
         opt.addEventListener('click', function () {
           var tries = 0;
-          setContext().then(function open() {
-            // The widget script loads async: if it isn't ready yet, retry for ~3 s.
-            var target = widgetButton(opt.getAttribute('data-mode'));
-            if (!target) { if (++tries < 15) setTimeout(open, 200); return; }
-            watch();
-            target.click();
-            sync();
+          mode = opt.getAttribute('data-mode');
+          setContext().then(function (cart) {
+            tagOrder('conversación', cart);
+            (function open() {
+              // The widget script loads async: if it isn't ready yet, retry for ~3 s.
+              var target = widgetButton(mode);
+              if (!target) { if (++tries < 15) setTimeout(open, 200); return; }
+              watch();
+              target.click();
+              sync();
+            })();
           });
         });
       });
+
+      // One-time prompt next to the button, at a moment of doubt. Shown at most
+      // once per visit, never over another popup (e.g. the Klaviyo welcome form).
+      var TEASES = {
+        plan: '¿Dudas entre suscripción o compra única? Te lo explico en un momento.',
+        cart: '¿Alguna duda antes de pagar? Te ayudo.',
+        time: '¿Te ayudo a elegir sabor o plan?'
+      };
+      var teaseTimers = [];
+      function alreadyTeased() {
+        try { return sessionStorage.getItem('kup_teased') === '1'; } catch (e) { return true; }
+      }
+      function popupOpen() {
+        return Array.prototype.some.call(document.querySelectorAll('[aria-modal="true"], [role="dialog"]'), function (d) {
+          return d.offsetParent !== null && !launcher.contains(d);
+        });
+      }
+      function tease(key) {
+        if (alreadyTeased() || launcher.classList.contains('kup-ll-open') || el.classList.contains('kup-ll-active')) return;
+        if (popupOpen()) { teaseTimers.push(setTimeout(function () { tease(key); }, 5000)); return; }
+        try { sessionStorage.setItem('kup_teased', '1'); } catch (e) {}
+        openingKey = key === 'time' ? null : key;
+        document.getElementById('kup-ll-tease-txt').textContent = TEASES[key];
+        launcher.classList.add('kup-ll-teasing');
+        teaseTimers.forEach(clearTimeout);
+      }
+      function stopTeasing() {
+        launcher.classList.remove('kup-ll-teasing');
+        teaseTimers.forEach(clearTimeout);
+      }
+      document.getElementById('kup-ll-tease').addEventListener('click', function (e) {
+        if (e.target.id === 'kup-ll-tease-x') { openingKey = null; stopTeasing(); return; }
+        stopTeasing();
+        launcher.classList.add('kup-ll-open');
+      });
+      if (!alreadyTeased()) {
+        getCart().then(function (cart) {
+          if (cart.item_count > 0) teaseTimers.push(setTimeout(function () { tease('cart'); }, 8000));
+          else teaseTimers.push(setTimeout(function () { tease('time'); }, 30000));
+        }).catch(function () {});
+        document.addEventListener('click', function (e) {
+          var box = e.target.closest && e.target.closest('.kp-buy-box, selling-plan-selector');
+          if (!box || e.target.closest('button[type="submit"], [name="add"]')) return;
+          teaseTimers.push(setTimeout(function () { tease('plan'); }, 1500));
+        });
+      }
     })();
   </script>
   <script src="https://unpkg.com/@elevenlabs/convai-widget-embed" async type="text/javascript"></script>
