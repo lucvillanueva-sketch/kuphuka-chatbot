@@ -1,0 +1,27 @@
+{%- comment -%}
+  ElevenLabs voice/chat pilot ("Llanos"), main product page only.
+  Paste into layout/theme.liquid just before </body>, AFTER the old
+  "Kuphuka Chat Widget" block. To revert: delete this whole block.
+
+  - Only renders on /products/kuphuka-greens. The Bundle page is excluded on
+    purpose: the agent's knowledge base has no Bundle pricing and would quote
+    the single-tub prices.
+  - Hides the old #kup-widget on this page so there is one chat bubble, not two.
+    Everywhere else the old widget (and the Telegram takeover) is unchanged.
+  - Page context is read when the page renders. Switching flavour or adding to
+    cart without a reload is not reflected until the next page load.
+  - No customer data is sent: only product, selected flavour and cart count.
+{%- endcomment -%}
+{%- if template.name == 'product' and product.handle == 'kuphuka-greens' -%}
+  <style>#kup-widget { display: none !important; }</style>
+  <elevenlabs-convai id="kup-llanos" agent-id="agent_5301m5vpf2kce9h9c1myennz0cs1"></elevenlabs-convai>
+  <script>
+    document.getElementById('kup-llanos').setAttribute('dynamic-variables', JSON.stringify({
+      page_type: 'product',
+      product_name: {{ product.title | json }},
+      flavour: {{ product.selected_or_first_available_variant.title | downcase | json }},
+      cart_count: {{ cart.item_count | json }}
+    }));
+  </script>
+  <script src="https://unpkg.com/@elevenlabs/convai-widget-embed" async type="text/javascript"></script>
+{%- endif -%}
