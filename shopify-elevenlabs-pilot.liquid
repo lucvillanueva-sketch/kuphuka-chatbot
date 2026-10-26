@@ -248,8 +248,16 @@
           if (PAGE !== 'product' && !(p && p.flavour)) {
             return Promise.resolve('FALTA_SABOR: no se ha añadido nada. Pregunta al cliente qué sabor prefiere (piña y coco o manzana y vainilla).');
           }
+          // The plan must come from the customer's own words and name exactly one
+          // option; "quiero probarlo" or "vale" alone is not a choice.
+          var words = norm(p && p.plan_words);
+          var saysSub = /suscrip|mensual|cada mes|todos los meses|\b39\b|treinta y nueve/.test(words.replace(/sin (la )?suscrip\w*/g, ''));
+          var saysOnce = /compra unica|\bunica\b|una vez|una sola vez|sin suscrip|suelto|\b59\b|cincuenta y nueve/.test(words);
+          if (saysSub === saysOnce) {
+            return Promise.resolve('FALTA_MODALIDAD: no se ha añadido nada. Pregunta al cliente si lo quiere con la suscripción (39 euros el primer mes) o como compra única (59 euros).');
+          }
           var variant = variantFor(p && p.flavour);
-          var subscription = !(p && p.plan === 'compra_unica');
+          var subscription = saysSub;
           var item = { id: variant.id, quantity: Math.max(1, Number(p && p.quantity) || 1) };
           if (subscription && PLAN_ID) item.selling_plan = PLAN_ID;
           return fetch('/cart/add.js', {
