@@ -252,7 +252,7 @@
           // option; "quiero probarlo" or "vale" alone is not a choice.
           var words = norm(p && p.plan_words);
           var saysSub = /suscrip|mensual|cada mes|todos los meses|\b39\b|treinta y nueve/.test(words.replace(/sin (la )?suscrip\w*/g, ''));
-          var saysOnce = /compra unica|\bunica\b|una vez|una sola vez|sin suscrip|suelto|\b59\b|cincuenta y nueve/.test(words);
+          var saysOnce = /compra unica|\bunica\b|una vez|una sola vez|sin (la )?suscrip|suelto|\b59\b|cincuenta y nueve/.test(words);
           if (saysSub === saysOnce) {
             return Promise.resolve('FALTA_MODALIDAD: no se ha añadido nada. Pregunta al cliente si lo quiere con la suscripción (39 euros el primer mes) o como compra única (59 euros).');
           }
