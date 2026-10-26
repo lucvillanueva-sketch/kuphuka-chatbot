@@ -15,8 +15,11 @@
   - One small labelled launcher ("Asesora / Kuphuka"). Clicking it offers
     "Escribir" or "Hablar"; the ElevenLabs widget stays hidden until the
     customer picks one, and hides again when the chat is closed or the call ends.
-  - Once per visit a short prompt appears next to it. Never over another popup.
-    Its opening line is passed to Llanos (agent allows first_message override).
+  - The button fades in after 8 s. Once per visit a short prompt appears next
+    to it (hidden again after 12 s), never over another popup. Its opening line
+    reaches Llanos as the {{opening_question}} variable of the first message.
+  - The call is started inside the customer's tap (no network wait first):
+    iPhone Safari blocks the microphone and audio otherwise.
       Product page: after a click on the plan box, or after 30 s.
       Homepage: after 10 s.
       Ingredients pages: once the visitor has scrolled 75% of the page.
@@ -61,6 +64,8 @@
     #kup-llanos { visibility: hidden; pointer-events: none; }
     #kup-llanos.kup-ll-active { visibility: visible; pointer-events: auto; }
     #kup-ll { position: fixed; bottom: 34px; right: 24px; z-index: 9999; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif; }
+    #kup-ll { opacity: 0; pointer-events: none; transition: opacity 0.4s ease; }
+    #kup-ll.kup-ll-shown { opacity: 1; pointer-events: auto; }
     #kup-ll.kup-ll-hidden { display: none; }
     #kup-ll-btn { display: flex; align-items: center; gap: 8px; width: max-content; white-space: nowrap; margin-left: auto; padding: 4px 12px 4px 4px; background: #fff; border: 1.5px solid #2a7d4f; border-radius: 999px; box-shadow: 0 4px 14px rgba(0,0,0,0.12); cursor: pointer; font: inherit; transition: transform 0.2s, box-shadow 0.2s; }
     #kup-ll-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0,0,0,0.16); }
@@ -187,23 +192,38 @@
         }).catch(function () {});
       }
 
-      // Context Llanos gets at the start of each conversation.
-      function setContext() {
-        return getCart().catch(function () { return null; }).then(function (cart) {
-          el.setAttribute('dynamic-variables', JSON.stringify({
-            page_type: PAGE,
-            product_name: PRODUCT,
-            flavour: currentVariant() ? currentVariant().title.toLowerCase() : 'ninguno todavía',
-            cart_count: cart ? cart.item_count : 0,
-            cart_summary: cart ? describeCart(cart) : 'desconocida',
-            pages_viewed: pagesViewed()
-          }));
-          if (OPENINGS[openingKey]) el.setAttribute('override-first-message', '[warmly] ¡Hola! Soy Llanos, de Kuphuka. ' + OPENINGS[openingKey]);
-          else el.removeAttribute('override-first-message');
-          return cart;
-        });
+      // Context Llanos gets at the start of each conversation. It is written
+      // synchronously from the last known basket: on iPhone the call must start
+      // inside the tap itself (no waiting on the network first), or Safari blocks
+      // the microphone and the audio.
+      var cachedCart = null;
+      function refreshCart() {
+        return getCart().then(function (cart) { cachedCart = cart; return cart; }).catch(function () { return cachedCart; });
       }
-      setContext();
+      function setAttr(name, value) {
+        if (value === null) { if (el.hasAttribute(name)) el.removeAttribute(name); return; }
+        if (el.getAttribute(name) !== value) el.setAttribute(name, value);
+      }
+      function applyContext() {
+        var cart = cachedCart;
+        setAttr('dynamic-variables', JSON.stringify({
+          page_type: PAGE,
+          product_name: PRODUCT,
+          flavour: currentVariant() ? currentVariant().title.toLowerCase() : 'ninguno todavía',
+          cart_count: cart ? cart.item_count : 0,
+          cart_summary: cart ? describeCart(cart) : 'desconocida',
+          pages_viewed: pagesViewed(),
+          // Used in the agent's first message ("¡Hola! Soy Llanos, de Kuphuka. {{opening_question}}").
+          // Not sent as override-first-message: with that override, voice calls broke on iPhone.
+          opening_question: openingQuestion()
+        }));
+      }
+      function openingQuestion() {
+        if (OPENINGS[openingKey]) return OPENINGS[openingKey];
+        var v = currentVariant();
+        return v ? '¿Te ayudo con alguna duda sobre Kuphuka Greens de ' + v.title.toLowerCase() + '?' : OPENINGS.general;
+      }
+      refreshCart().then(applyContext);
 
       // Re-render the theme's header (basket count) and basket drawer after a change.
       function refreshThemeCart(sections) {
@@ -241,7 +261,7 @@
               if (!r.ok) throw new Error(data.description || data.message || 'error');
               refreshThemeCart(data.sections);
               tagOrder('añadió a la cesta');
-              return getCart();
+              return refreshCart();
             });
           }).then(function (cart) {
             return 'Añadido: ' + item.quantity + ' x ' + PRODUCT + ' (' + variant.title + ', ' +
@@ -304,22 +324,24 @@
       document.getElementById('kup-ll-btn').addEventListener('click', function () {
         launcher.classList.toggle('kup-ll-open');
         stopTeasing();
+        // Fresh basket while the customer picks Escribir/Hablar.
+        refreshCart().then(applyContext);
       });
       launcher.querySelectorAll('.kup-ll-opt').forEach(function (opt) {
         opt.addEventListener('click', function () {
           var tries = 0;
           mode = opt.getAttribute('data-mode');
-          setContext().then(function (cart) {
-            tagOrder('conversación', cart);
-            (function open() {
-              // The widget script loads async: if it isn't ready yet, retry for ~3 s.
-              var target = widgetButton(mode);
-              if (!target) { if (++tries < 15) setTimeout(open, 200); return; }
-              watch();
-              target.click();
-              sync();
-            })();
-          });
+          applyContext();
+          (function open() {
+            // Normally the widget is ready and this runs inside the tap. If its
+            // script is still loading, retry for ~3 s.
+            var target = widgetButton(mode);
+            if (!target) { if (++tries < 15) setTimeout(open, 200); return; }
+            watch();
+            target.click();
+            sync();
+          })();
+          tagOrder('conversación', cachedCart);
         });
       });
 
@@ -348,7 +370,7 @@
         try { sessionStorage.setItem('kup_teased', '1'); } catch (e) {}
         openingKey = key === 'time' ? DEFAULT_OPENING : key;
         document.getElementById('kup-ll-tease-txt').textContent = TEASES[key];
-        launcher.classList.add('kup-ll-teasing');
+        launcher.classList.add('kup-ll-shown', 'kup-ll-teasing');
         teaseTimers.forEach(clearTimeout);
         // Hide it again after 12 s so it never sits over the page's own buttons for long.
         teaseTimers = [setTimeout(stopTeasing, 12000)];
@@ -361,7 +383,10 @@
         if (e.target.id === 'kup-ll-tease-x') { openingKey = DEFAULT_OPENING; stopTeasing(); return; }
         stopTeasing();
         launcher.classList.add('kup-ll-open');
+        refreshCart().then(applyContext);
       });
+      // The button fades in after 8 s (like the old chat bubble), or earlier with a prompt.
+      setTimeout(function () { launcher.classList.add('kup-ll-shown'); }, 8000);
       if (!alreadyTeased()) {
         getCart().then(function (cart) {
           if (cart.item_count > 0) teaseTimers.push(setTimeout(function () { tease('cart'); }, 8000));
