@@ -6,17 +6,21 @@
   Part 1 (every page): remembers the titles of the pages seen during this
   visit (sessionStorage, cleared when the tab closes; no personal data).
 
-  Part 2 (only /products/kuphuka-greens):
+  Part 2 (homepage, /products/kuphuka-greens, /pages/ingredientes and
+  /pages/tabla-de-ingredientes-activos):
   - The Bundle page is excluded on purpose: the agent's knowledge base has no
     Bundle pricing and would quote the single-tub prices.
-  - Hides the old #kup-widget on this page so there is one chat bubble, not two.
+  - Hides the old #kup-widget on these pages so there is one chat bubble, not two.
     Everywhere else the old widget (and the Telegram takeover) is unchanged.
-  - One labelled launcher ("Tu asesora Kuphuka"). Clicking it offers
+  - One small labelled launcher ("Asesora / Kuphuka"). Clicking it offers
     "Escribir" or "Hablar"; the ElevenLabs widget stays hidden until the
     customer picks one, and hides again when the chat is closed or the call ends.
-  - Once per visit a short prompt appears next to it: after a click on the plan
-    box, 8 s after load with a full basket, or after 30 s. Never over another
-    popup. Its opening line is passed to Llanos (agent allows first_message override).
+  - Once per visit a short prompt appears next to it. Never over another popup.
+    Its opening line is passed to Llanos (agent allows first_message override).
+      Product page: after a click on the plan box, or after 30 s.
+      Homepage: after 10 s.
+      Ingredients pages: once the visitor has scrolled 75% of the page.
+      Any page with something in the basket: after 8 s.
   - Orders are marked with the cart attribute "Asesora Llanos" ("conversación"
     or "añadió a la cesta"), visible in the order's Additional details.
   - When the customer picks an option, the page sends Llanos the current
@@ -40,23 +44,34 @@
     } catch (e) {}
   })();
 </script>
+{%- assign kup_page = '' -%}
 {%- if template.name == 'product' and product.handle == 'kuphuka-greens' -%}
+  {%- assign kup_page = 'product' -%}
+{%- elsif template.name == 'index' -%}
+  {%- assign kup_page = 'home' -%}
+{%- elsif template.name == 'page' -%}
+  {%- if page.handle == 'ingredientes' or page.handle == 'tabla-de-ingredientes-activos' -%}
+    {%- assign kup_page = 'ingredients' -%}
+  {%- endif -%}
+{%- endif -%}
+{%- if kup_page != '' -%}
+  {%- assign kup_product = all_products['kuphuka-greens'] -%}
   <style>
     #kup-widget { display: none !important; }
     #kup-llanos { visibility: hidden; pointer-events: none; }
     #kup-llanos.kup-ll-active { visibility: visible; pointer-events: auto; }
     #kup-ll { position: fixed; bottom: 34px; right: 24px; z-index: 9999; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif; }
     #kup-ll.kup-ll-hidden { display: none; }
-    #kup-ll-btn { display: flex; align-items: center; gap: 10px; width: max-content; white-space: nowrap; margin-left: auto; padding: 6px 16px 6px 6px; background: #fff; border: 1.5px solid #2a7d4f; border-radius: 999px; box-shadow: 0 6px 20px rgba(0,0,0,0.12); cursor: pointer; font: inherit; transition: transform 0.2s, box-shadow 0.2s; }
-    #kup-ll-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(0,0,0,0.16); }
-    .kup-ll-ico { width: 36px; height: 36px; border-radius: 50%; background: #2a7d4f; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-    .kup-ll-ico svg { width: 20px; height: 20px; }
+    #kup-ll-btn { display: flex; align-items: center; gap: 8px; width: max-content; white-space: nowrap; margin-left: auto; padding: 4px 12px 4px 4px; background: #fff; border: 1.5px solid #2a7d4f; border-radius: 999px; box-shadow: 0 4px 14px rgba(0,0,0,0.12); cursor: pointer; font: inherit; transition: transform 0.2s, box-shadow 0.2s; }
+    #kup-ll-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0,0,0,0.16); }
+    .kup-ll-ico { width: 30px; height: 30px; border-radius: 50%; background: #2a7d4f; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .kup-ll-ico svg { width: 16px; height: 16px; }
     .kup-ll-ico .kup-ll-close { display: none; }
     #kup-ll.kup-ll-open .kup-ll-ico .kup-ll-chat { display: none; }
     #kup-ll.kup-ll-open .kup-ll-ico .kup-ll-close { display: block; }
-    .kup-ll-txt { text-align: left; line-height: 1.2; }
-    .kup-ll-txt strong { display: block; font-size: 14px; font-weight: 600; color: #1a1a1a; }
-    .kup-ll-txt small { display: block; font-size: 12px; color: #2a7d4f; }
+    .kup-ll-txt { text-align: left; line-height: 1.15; }
+    .kup-ll-txt strong { display: block; font-size: 12px; font-weight: 600; color: #1a1a1a; }
+    .kup-ll-txt small { display: block; font-size: 12px; font-weight: 600; color: #2a7d4f; }
     #kup-ll-tease { display: none; position: relative; max-width: 250px; margin: 0 0 10px auto; padding: 12px 34px 12px 14px; background: #fff; border-radius: 14px; box-shadow: 0 10px 32px rgba(0,0,0,0.16), 0 0 0 1px rgba(0,0,0,0.04); font-size: 14px; color: #1a1a1a; cursor: pointer; }
     #kup-ll.kup-ll-teasing #kup-ll-tease { display: block; }
     #kup-ll.kup-ll-open #kup-ll-tease { display: none; }
@@ -71,8 +86,6 @@
     .kup-ll-opt span { display: block; font-size: 12px; color: #6b6b6b; }
     @media (max-width: 420px) {
       #kup-ll { bottom: 80px; right: 16px; }
-      #kup-ll-btn { padding-right: 12px; }
-      .kup-ll-txt strong { font-size: 13px; }
     }
   </style>
 
@@ -89,12 +102,12 @@
       </button>
     </div>
     <div id="kup-ll-tease" role="button" tabindex="0"><span id="kup-ll-tease-txt"></span><button id="kup-ll-tease-x" aria-label="Cerrar">×</button></div>
-    <button id="kup-ll-btn" aria-label="Abrir tu asesora Kuphuka">
+    <button id="kup-ll-btn" aria-label="Abrir la asesora Kuphuka">
       <span class="kup-ll-ico">
         <svg class="kup-ll-chat" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>
         <svg class="kup-ll-close" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </span>
-      <span class="kup-ll-txt"><strong>Tu asesora Kuphuka</strong><small>Chat o voz</small></span>
+      <span class="kup-ll-txt"><strong>Asesora</strong><small>Kuphuka</small></span>
     </button>
   </div>
 
@@ -103,19 +116,22 @@
     (function () {
       var el = document.getElementById('kup-llanos');
       var launcher = document.getElementById('kup-ll');
-      var PRODUCT = {{ product.title | json }};
+      var PAGE = {{ kup_page | json }}; // 'product', 'home' or 'ingredients'
+      var PRODUCT = {{ kup_product.title | json }};
       var VARIANTS = [
-        {%- for v in product.variants -%}
+        {%- for v in kup_product.variants -%}
           { id: {{ v.id }}, title: {{ v.title | json }} }{% unless forloop.last %},{% endunless %}
         {%- endfor -%}
       ];
-      var PLAN_ID = {{ product.selling_plan_groups.first.selling_plans.first.id | json }};
+      var PLAN_ID = {{ kup_product.selling_plan_groups.first.selling_plans.first.id | json }};
 
       function norm(s) {
         return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
       }
       // Flavour currently selected in the product form (follows the customer's clicks).
+      // Only the product page has a flavour picker; elsewhere nothing is chosen yet.
       function currentVariant() {
+        if (PAGE !== 'product') return null;
         var input = document.querySelector('form[action*="/cart/add"] [name="id"]');
         var id = input && Number(input.value);
         return VARIANTS.filter(function (v) { return v.id === id; })[0] || VARIANTS[0];
@@ -126,7 +142,7 @@
           var t = norm(v.title);
           return t === f || t.split(' ')[0] === f.split(' ')[0];
         })[0];
-        return match || currentVariant();
+        return match || currentVariant() || VARIANTS[0];
       }
       function describeCart(cart) {
         if (!cart.items.length) return 'vacía';
@@ -147,9 +163,13 @@
       // Opening question, matched to the one-time prompt the customer clicked (if any).
       var OPENINGS = {
         plan: '¿Te ayudo a elegir entre la suscripción y la compra única?',
-        cart: '¿Te resuelvo alguna duda antes de pagar?'
+        cart: '¿Te resuelvo alguna duda antes de pagar?',
+        home: '¿Quieres que te cuente en un minuto qué es Kuphuka Greens?',
+        ingredients: '¿Tienes alguna duda sobre los ingredientes?',
+        general: '¿En qué te puedo ayudar?'
       };
-      var openingKey = null;
+      // Without a prompt, the product page uses the agent's own greeting (it names the flavour).
+      var openingKey = PAGE === 'product' ? null : 'general';
 
       // Marks the order in Shopify (cart attribute, shown in the order's
       // "Additional details") so orders helped by Llanos can be counted.
@@ -171,9 +191,9 @@
       function setContext() {
         return getCart().catch(function () { return null; }).then(function (cart) {
           el.setAttribute('dynamic-variables', JSON.stringify({
-            page_type: 'product',
+            page_type: PAGE,
             product_name: PRODUCT,
-            flavour: currentVariant().title.toLowerCase(),
+            flavour: currentVariant() ? currentVariant().title.toLowerCase() : 'ninguno todavía',
             cart_count: cart ? cart.item_count : 0,
             cart_summary: cart ? describeCart(cart) : 'desconocida',
             pages_viewed: pagesViewed()
@@ -204,6 +224,10 @@
 
       var clientTools = {
         add_to_cart: function (p) {
+          // Off the product page no flavour is picked: never guess one.
+          if (PAGE !== 'product' && !(p && p.flavour)) {
+            return Promise.resolve('FALTA_SABOR: no se ha añadido nada. Pregunta al cliente qué sabor prefiere (piña y coco o manzana y vainilla).');
+          }
           var variant = variantFor(p && p.flavour);
           var subscription = !(p && p.plan === 'compra_unica');
           var item = { id: variant.id, quantity: Math.max(1, Number(p && p.quantity) || 1) };
@@ -304,8 +328,11 @@
       var TEASES = {
         plan: '¿Dudas entre suscripción o compra única? Te lo explico en un momento.',
         cart: '¿Alguna duda antes de pagar? Te ayudo.',
-        time: '¿Te ayudo a elegir sabor o plan?'
+        time: '¿Te ayudo a elegir sabor o plan?',
+        home: '¿Primera vez por aquí? Te cuento en un minuto qué es Kuphuka.',
+        ingredients: '¿Dudas sobre algún ingrediente? Pregúntame.'
       };
+      var DEFAULT_OPENING = openingKey;
       var teaseTimers = [];
       function alreadyTeased() {
         try { return sessionStorage.getItem('kup_teased') === '1'; } catch (e) { return true; }
@@ -319,30 +346,44 @@
         if (alreadyTeased() || launcher.classList.contains('kup-ll-open') || el.classList.contains('kup-ll-active')) return;
         if (popupOpen()) { teaseTimers.push(setTimeout(function () { tease(key); }, 5000)); return; }
         try { sessionStorage.setItem('kup_teased', '1'); } catch (e) {}
-        openingKey = key === 'time' ? null : key;
+        openingKey = key === 'time' ? DEFAULT_OPENING : key;
         document.getElementById('kup-ll-tease-txt').textContent = TEASES[key];
         launcher.classList.add('kup-ll-teasing');
         teaseTimers.forEach(clearTimeout);
+        // Hide it again after 12 s so it never sits over the page's own buttons for long.
+        teaseTimers = [setTimeout(stopTeasing, 12000)];
       }
       function stopTeasing() {
         launcher.classList.remove('kup-ll-teasing');
         teaseTimers.forEach(clearTimeout);
       }
       document.getElementById('kup-ll-tease').addEventListener('click', function (e) {
-        if (e.target.id === 'kup-ll-tease-x') { openingKey = null; stopTeasing(); return; }
+        if (e.target.id === 'kup-ll-tease-x') { openingKey = DEFAULT_OPENING; stopTeasing(); return; }
         stopTeasing();
         launcher.classList.add('kup-ll-open');
       });
       if (!alreadyTeased()) {
         getCart().then(function (cart) {
           if (cart.item_count > 0) teaseTimers.push(setTimeout(function () { tease('cart'); }, 8000));
-          else teaseTimers.push(setTimeout(function () { tease('time'); }, 30000));
+          else if (PAGE === 'product') teaseTimers.push(setTimeout(function () { tease('time'); }, 30000));
+          else if (PAGE === 'home') teaseTimers.push(setTimeout(function () { tease('home'); }, 10000));
         }).catch(function () {});
-        document.addEventListener('click', function (e) {
-          var box = e.target.closest && e.target.closest('.kp-buy-box, selling-plan-selector');
-          if (!box || e.target.closest('button[type="submit"], [name="add"]')) return;
-          teaseTimers.push(setTimeout(function () { tease('plan'); }, 1500));
-        });
+        if (PAGE === 'product') {
+          document.addEventListener('click', function (e) {
+            var box = e.target.closest && e.target.closest('.kp-buy-box, selling-plan-selector');
+            if (!box || e.target.closest('button[type="submit"], [name="add"]')) return;
+            teaseTimers.push(setTimeout(function () { tease('plan'); }, 1500));
+          });
+        }
+        if (PAGE === 'ingredients') {
+          // People read these pages to the end: wait until they are 75% down.
+          window.addEventListener('scroll', function onScroll() {
+            var seen = (window.scrollY + window.innerHeight) / document.documentElement.scrollHeight;
+            if (seen < 0.75) return;
+            window.removeEventListener('scroll', onScroll);
+            tease('ingredients');
+          }, { passive: true });
+        }
       }
     })();
   </script>
