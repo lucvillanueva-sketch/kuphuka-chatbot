@@ -1,23 +1,40 @@
 {%- comment -%}
-  ElevenLabs voice/chat pilot ("Llanos"), main product page only.
+  ElevenLabs voice/chat pilot ("Llanos").
   Paste into layout/theme.liquid just before </body>, AFTER the old
   "Kuphuka Chat Widget" block. To revert: delete this whole block.
 
-  - Only renders on /products/kuphuka-greens. The Bundle page is excluded on
-    purpose: the agent's knowledge base has no Bundle pricing and would quote
-    the single-tub prices.
+  Part 1 (every page): remembers the titles of the pages seen during this
+  visit (sessionStorage, cleared when the tab closes; no personal data).
+
+  Part 2 (only /products/kuphuka-greens):
+  - The Bundle page is excluded on purpose: the agent's knowledge base has no
+    Bundle pricing and would quote the single-tub prices.
   - Hides the old #kup-widget on this page so there is one chat bubble, not two.
     Everywhere else the old widget (and the Telegram takeover) is unchanged.
   - One launcher that looks like the old bubble. Clicking it offers
     "Escribir" or "Hablar"; the ElevenLabs widget stays hidden until the
     customer picks one, and hides again when the chat is closed or the call ends.
-    It is driven through the widget's button labels ("Mensaje", "Iniciar llamada",
+  - When the customer picks an option, the page sends Llanos the current
+    flavour, the basket contents and the pages seen this visit.
+  - Llanos can add the product to the basket (add_to_cart) and open checkout
+    (go_to_checkout), only after the customer says yes.
+  - It is driven through the widget's button labels ("Mensaje", "Iniciar llamada",
     "Contraer", "Finalizar"), which are set in the agent's widget texts: if those
     texts change, change them here too.
-  - Page context is read when the page renders. Switching flavour or adding to
-    cart without a reload is not reflected until the next page load.
-  - No customer data is sent: only product, selected flavour and cart count.
 {%- endcomment -%}
+<script>
+  (function () {
+    try {
+      var key = 'kup_pages';
+      var pages = JSON.parse(sessionStorage.getItem(key) || '[]');
+      var title = document.title.split(/\s[|–-]\s/)[0].trim();
+      if (title && pages[pages.length - 1] !== title) {
+        pages.push(title);
+        sessionStorage.setItem(key, JSON.stringify(pages.slice(-12)));
+      }
+    } catch (e) {}
+  })();
+</script>
 {%- if template.name == 'product' and product.handle == 'kuphuka-greens' -%}
   <style>
     #kup-widget { display: none !important; }
@@ -65,12 +82,110 @@
     (function () {
       var el = document.getElementById('kup-llanos');
       var launcher = document.getElementById('kup-ll');
-      el.setAttribute('dynamic-variables', JSON.stringify({
-        page_type: 'product',
-        product_name: {{ product.title | json }},
-        flavour: {{ product.selected_or_first_available_variant.title | downcase | json }},
-        cart_count: {{ cart.item_count | json }}
-      }));
+      var PRODUCT = {{ product.title | json }};
+      var VARIANTS = [
+        {%- for v in product.variants -%}
+          { id: {{ v.id }}, title: {{ v.title | json }} }{% unless forloop.last %},{% endunless %}
+        {%- endfor -%}
+      ];
+      var PLAN_ID = {{ product.selling_plan_groups.first.selling_plans.first.id | json }};
+
+      function norm(s) {
+        return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      }
+      // Flavour currently selected in the product form (follows the customer's clicks).
+      function currentVariant() {
+        var input = document.querySelector('form[action*="/cart/add"] [name="id"]');
+        var id = input && Number(input.value);
+        return VARIANTS.filter(function (v) { return v.id === id; })[0] || VARIANTS[0];
+      }
+      function variantFor(flavour) {
+        var f = norm(flavour);
+        var match = VARIANTS.filter(function (v) {
+          var t = norm(v.title);
+          return t === f || t.split(' ')[0] === f.split(' ')[0];
+        })[0];
+        return match || currentVariant();
+      }
+      function describeCart(cart) {
+        if (!cart.items.length) return 'vacía';
+        return cart.items.map(function (i) {
+          var plan = i.selling_plan_allocation ? 'suscripción mensual' : 'compra única';
+          return i.quantity + ' x ' + i.product_title + ' (' + i.variant_title + ', ' + plan + ')';
+        }).join('; ');
+      }
+      function pagesViewed() {
+        try {
+          var pages = JSON.parse(sessionStorage.getItem('kup_pages') || '[]');
+          return pages.length ? pages.join(' > ') : 'solo esta página';
+        } catch (e) { return 'desconocido'; }
+      }
+      function getCart() {
+        return fetch('/cart.js', { headers: { Accept: 'application/json' } }).then(function (r) { return r.json(); });
+      }
+      // Context Llanos gets at the start of each conversation.
+      function setContext() {
+        return getCart().catch(function () { return null; }).then(function (cart) {
+          el.setAttribute('dynamic-variables', JSON.stringify({
+            page_type: 'product',
+            product_name: PRODUCT,
+            flavour: currentVariant().title.toLowerCase(),
+            cart_count: cart ? cart.item_count : 0,
+            cart_summary: cart ? describeCart(cart) : 'desconocida',
+            pages_viewed: pagesViewed()
+          }));
+        });
+      }
+      setContext();
+
+      // Re-render the theme's header (basket count) and basket drawer after a change.
+      function refreshThemeCart(sections) {
+        Object.keys(sections || {}).forEach(function (id) {
+          var target = document.getElementById('shopify-section-' + id);
+          if (!target || !sections[id]) return;
+          var html = new DOMParser().parseFromString(sections[id], 'text/html');
+          var fresh = html.getElementById('shopify-section-' + id);
+          if (fresh) target.innerHTML = fresh.innerHTML;
+        });
+      }
+      function cartSectionIds() {
+        return Array.prototype.map.call(
+          document.querySelectorAll('[id^="shopify-section-"]'),
+          function (s) { return s.id.replace('shopify-section-', ''); }
+        ).filter(function (id) { return /__(header|cart-drawer)$/.test(id); });
+      }
+
+      var clientTools = {
+        add_to_cart: function (p) {
+          var variant = variantFor(p && p.flavour);
+          var subscription = !(p && p.plan === 'compra_unica');
+          var item = { id: variant.id, quantity: Math.max(1, Number(p && p.quantity) || 1) };
+          if (subscription && PLAN_ID) item.selling_plan = PLAN_ID;
+          return fetch('/cart/add.js', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify({ items: [item], sections: cartSectionIds().join(',') })
+          }).then(function (r) {
+            return r.json().then(function (data) {
+              if (!r.ok) throw new Error(data.description || data.message || 'error');
+              refreshThemeCart(data.sections);
+              return getCart();
+            });
+          }).then(function (cart) {
+            return 'Añadido: ' + item.quantity + ' x ' + PRODUCT + ' (' + variant.title + ', ' +
+              (subscription ? 'suscripción mensual' : 'compra única') + '). Cesta ahora: ' + describeCart(cart) + '.';
+          }).catch(function (e) {
+            return 'ERROR: no se pudo añadir a la cesta (' + e.message + ').';
+          });
+        },
+        go_to_checkout: function () {
+          setTimeout(function () { window.location.href = '/checkout'; }, 3500);
+          return 'Abriendo el pago.';
+        }
+      };
+      el.addEventListener('elevenlabs-convai:call', function (e) {
+        e.detail.config.clientTools = clientTools;
+      });
 
       function widgetButton(label) {
         return el.shadowRoot && el.shadowRoot.querySelector('button[aria-label="' + label + '"]');
@@ -86,6 +201,10 @@
       function watch() {
         if (watching || !el.shadowRoot) return;
         watching = true;
+        // iPhone zooms into text boxes smaller than 16px; keep the chat box at 16px.
+        var style = document.createElement('style');
+        style.textContent = 'textarea, input { font-size: 16px !important; }';
+        el.shadowRoot.appendChild(style);
         new MutationObserver(sync).observe(el.shadowRoot, { childList: true, subtree: true, attributes: true });
         // Closing the window during a voice call ends the call, so the page is
         // never left with the call bar on top of it.
@@ -105,14 +224,14 @@
       launcher.querySelectorAll('.kup-ll-opt').forEach(function (opt) {
         opt.addEventListener('click', function () {
           var tries = 0;
-          // The widget script loads async: if it isn't ready yet, retry for ~3 s.
-          (function open() {
+          setContext().then(function open() {
+            // The widget script loads async: if it isn't ready yet, retry for ~3 s.
             var target = widgetButton(opt.getAttribute('data-mode'));
             if (!target) { if (++tries < 15) setTimeout(open, 200); return; }
             watch();
             target.click();
             sync();
-          })();
+          });
         });
       });
     })();
